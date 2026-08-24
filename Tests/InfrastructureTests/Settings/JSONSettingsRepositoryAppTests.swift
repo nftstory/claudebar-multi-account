@@ -234,6 +234,29 @@ struct JSONSettingsRepositoryAppTests {
         #expect(repo.overviewModeEnabled() == true)
     }
 
+    @Test
+    func `compactOverviewEnabled defaults to false`() {
+        let (repo, dir) = makeRepository()
+        defer { cleanup(dir) }
+
+        #expect(repo.compactOverviewEnabled() == false)
+    }
+
+    @Test
+    func `compactOverviewEnabled round trips across repository instances`() {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("claudebar-test-\(UUID().uuidString)")
+        let fileURL = tempDir.appendingPathComponent("settings.json")
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let store = JSONSettingsStore(fileURL: fileURL)
+        let repo1 = JSONSettingsRepository(store: store)
+        repo1.setCompactOverviewEnabled(true)
+
+        let repo2 = JSONSettingsRepository(store: store)
+        #expect(repo2.compactOverviewEnabled() == true)
+    }
+
     // MARK: - Background Sync
 
     @Test

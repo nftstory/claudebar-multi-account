@@ -39,6 +39,16 @@ struct GeneralPane: View {
                 SettingsRowDivider()
 
                 SettingsRow(
+                    title: "Compact overview",
+                    subtitle: "Show every provider's key quotas in a dense table."
+                ) {
+                    SettingsSwitch(isOn: $settings.compactOverviewEnabled)
+                        .disabled(!settings.overviewModeEnabled)
+                }
+
+                SettingsRowDivider()
+
+                SettingsRow(
                     title: "Daily Usage Cards",
                     subtitle: "Show per-day usage summaries in the popover."
                 ) {

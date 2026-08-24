@@ -146,6 +146,14 @@ public final class JSONSettingsRepository:
         store.write(value: enabled, key: "app.overviewModeEnabled")
     }
 
+    public func compactOverviewEnabled() -> Bool {
+        store.read(key: "app.compactOverviewEnabled") ?? false
+    }
+
+    public func setCompactOverviewEnabled(_ enabled: Bool) {
+        store.write(value: enabled, key: "app.compactOverviewEnabled")
+    }
+
     public func backgroundSyncEnabled() -> Bool {
         store.read(key: "app.backgroundSyncEnabled") ?? false
     }

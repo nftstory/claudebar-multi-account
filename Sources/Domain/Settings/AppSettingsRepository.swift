@@ -50,6 +50,9 @@ public protocol AppSettingsRepository: Sendable {
     func overviewModeEnabled() -> Bool
     func setOverviewModeEnabled(_ enabled: Bool)
 
+    func compactOverviewEnabled() -> Bool
+    func setCompactOverviewEnabled(_ enabled: Bool)
+
     // MARK: - Background Sync
 
     func backgroundSyncEnabled() -> Bool

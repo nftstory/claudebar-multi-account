@@ -73,7 +73,7 @@ struct MenuContentView: View {
                 }
 
                 // Session Indicator (shown when Claude Code is active)
-                if let session = sessionMonitor.activeSession {
+                if !compactOverviewIsActive, let session = sessionMonitor.activeSession {
                     SessionIndicatorView(session: session)
                         .padding(.horizontal, 16)
                         .padding(.bottom, 8)
@@ -173,6 +173,10 @@ struct MenuContentView: View {
             visibleScreenHeight: NSScreen.main?.visibleFrame.height ?? 800,
             overviewMode: settings.overviewModeEnabled
         )
+    }
+
+    private var compactOverviewIsActive: Bool {
+        settings.overviewModeEnabled && settings.compactOverviewEnabled
     }
 
     // MARK: - Background Orbs
@@ -415,6 +419,8 @@ struct MenuContentView: View {
             let providers = monitor.enabledProviders
             if providers.isEmpty {
                 emptyState
+            } else if compactOverviewIsActive {
+                compactOverviewContent(providers: providers)
             } else {
                 overviewContent(providers: providers)
             }
@@ -449,6 +455,142 @@ struct MenuContentView: View {
         }
         .opacity(animateIn ? 1 : 0)
         .animation(.easeOut(duration: 0.5).delay(0.2), value: animateIn)
+    }
+
+    private func compactOverviewContent(providers: [any AIProvider]) -> some View {
+        VStack(spacing: 0) {
+            ForEach(Array(providers.enumerated()), id: \.element.id) { index, provider in
+                if index > 0 {
+                    Divider()
+                        .background(theme.glassBorder)
+                }
+                compactOverviewRow(provider: provider)
+            }
+        }
+        .opacity(animateIn ? 1 : 0)
+        .animation(.easeOut(duration: 0.5).delay(0.2), value: animateIn)
+    }
+
+    private func compactOverviewRow(provider: any AIProvider) -> some View {
+        HStack(spacing: 8) {
+            HStack(spacing: 6) {
+                ProviderIconView(providerId: provider.id, size: 16, showGlow: false)
+
+                Text(provider.name)
+                    .font(.system(size: 12, weight: .semibold, design: theme.fontDesign))
+                    .foregroundStyle(theme.textPrimary)
+                    .lineLimit(1)
+            }
+            .frame(width: 112, alignment: .leading)
+
+            if let snapshot = provider.snapshot {
+                compactQuotaCell(label: "5H", quota: snapshot.sessionQuota)
+                    .frame(maxWidth: .infinity)
+                compactQuotaCell(label: "WEEKLY", quota: snapshot.weeklyQuota)
+                    .frame(maxWidth: .infinity)
+
+                let extraQuota = compactExtraQuota(snapshot: snapshot)
+                compactQuotaCell(
+                    label: extraQuota.map(compactQuotaLabel) ?? "",
+                    quota: extraQuota
+                )
+                .frame(maxWidth: .infinity)
+            } else if provider.isSyncing {
+                LoadingSpinnerView(isCompact: true)
+                    .frame(maxWidth: .infinity)
+            } else {
+                compactErrorState(provider: provider)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+        .padding(.vertical, 6)
+    }
+
+    private func compactExtraQuota(snapshot: UsageSnapshot) -> UsageQuota? {
+        snapshot.modelSpecificQuotas.first ?? snapshot.quotas.first { quota in
+            if case .timeLimit = quota.quotaType {
+                return true
+            }
+            return false
+        }
+    }
+
+    private func compactQuotaLabel(_ quota: UsageQuota) -> String {
+        (quota.compactTitle ?? quota.quotaType.displayName).uppercased()
+    }
+
+    @ViewBuilder
+    private func compactQuotaCell(label: String, quota: UsageQuota?) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            let displayedLabel = quota == nil ? "" : label
+            Text(displayedLabel.isEmpty ? " " : displayedLabel.uppercased())
+                .font(.system(size: 9, weight: .semibold, design: theme.fontDesign))
+                .foregroundStyle(theme.textTertiary)
+                .tracking(0.5)
+                .lineLimit(1)
+                .opacity(displayedLabel.isEmpty ? 0 : 1)
+
+            if let quota {
+                Text("\(Int(quota.percentRemaining.rounded()))%")
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .foregroundStyle(theme.textPrimary)
+                    .lineLimit(1)
+
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        Capsule()
+                            .fill(theme.progressTrack)
+
+                        Capsule()
+                            .fill(theme.statusColor(for: quota.status))
+                            .frame(
+                                width: geometry.size.width
+                                    * max(0, min(100, quota.percentRemaining)) / 100
+                            )
+                    }
+                }
+                .frame(height: 3)
+
+                if let resetText = compactResetText(for: quota) {
+                    Text(resetText)
+                        .font(.system(size: 9.5, design: theme.fontDesign))
+                        .foregroundStyle(theme.textTertiary)
+                        .lineLimit(1)
+                } else {
+                    Text(" ")
+                        .font(.system(size: 9.5, design: theme.fontDesign))
+                        .hidden()
+                }
+            } else {
+                Text("—")
+                    .font(.system(size: 15, design: .rounded))
+                    .foregroundStyle(theme.textTertiary)
+                    .lineLimit(1)
+
+                Color.clear
+                    .frame(height: 3)
+
+                Text(" ")
+                    .font(.system(size: 9.5, design: theme.fontDesign))
+                    .hidden()
+            }
+        }
+    }
+
+    private func compactResetText(for quota: UsageQuota) -> String? {
+        if let resetText = quota.resetText {
+            return resetText
+        }
+        guard let countdown = quota.resetTimestampDescription else {
+            return nil
+        }
+        if countdown.hasPrefix("Resets in ") {
+            return String(countdown.dropFirst("Resets in ".count))
+        }
+        if countdown.hasPrefix("Resets ") {
+            return String(countdown.dropFirst("Resets ".count))
+        }
+        return countdown
     }
 
     private func providerSection(provider: any AIProvider) -> some View {
@@ -1281,37 +1423,50 @@ struct WrappedStatCard: View {
 // MARK: - Loading Spinner View
 
 struct LoadingSpinnerView: View {
+    var isCompact = false
+
     @Environment(\.appTheme) private var theme
     @State private var isSpinning = false
 
+    @ViewBuilder
     var body: some View {
-        VStack(spacing: 16) {
-            ZStack {
-                Circle()
-                    .stroke(theme.textTertiary, lineWidth: 3)
-                    .frame(width: 50, height: 50)
+        Group {
+            if isCompact {
+                ProgressView()
+                    .controlSize(.small)
+                    .tint(theme.accentPrimary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 40)
+            } else {
+                VStack(spacing: 16) {
+                    ZStack {
+                        Circle()
+                            .stroke(theme.textTertiary, lineWidth: 3)
+                            .frame(width: 50, height: 50)
 
-                Circle()
-                    .trim(from: 0, to: 0.3)
-                    .stroke(
-                        theme.accentGradient,
-                        style: StrokeStyle(lineWidth: 3, lineCap: .round)
-                    )
-                    .frame(width: 50, height: 50)
-                    .rotationEffect(.degrees(isSpinning ? 360 : 0))
-                    .animation(
-                        .linear(duration: 1).repeatForever(autoreverses: false),
-                        value: isSpinning
-                    )
+                        Circle()
+                            .trim(from: 0, to: 0.3)
+                            .stroke(
+                                theme.accentGradient,
+                                style: StrokeStyle(lineWidth: 3, lineCap: .round)
+                            )
+                            .frame(width: 50, height: 50)
+                            .rotationEffect(.degrees(isSpinning ? 360 : 0))
+                            .animation(
+                                .linear(duration: 1).repeatForever(autoreverses: false),
+                                value: isSpinning
+                            )
+                    }
+
+                    Text("Fetching usage data...")
+                        .font(.system(size: 13, weight: .medium, design: theme.fontDesign))
+                        .foregroundStyle(theme.textSecondary)
+                }
+                .frame(height: 140)
+                .frame(maxWidth: .infinity)
+                .glassCard()
             }
-
-            Text("Fetching usage data...")
-                .font(.system(size: 13, weight: .medium, design: theme.fontDesign))
-                .foregroundStyle(theme.textSecondary)
         }
-        .frame(height: 140)
-        .frame(maxWidth: .infinity)
-        .glassCard()
         .onAppear {
             isSpinning = true
         }

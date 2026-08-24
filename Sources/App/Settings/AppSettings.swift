@@ -116,6 +116,13 @@ public final class AppSettings {
         }
     }
 
+    /// Whether overview mode uses the dense all-provider quota table
+    public var compactOverviewEnabled: Bool {
+        didSet {
+            repository.setCompactOverviewEnabled(compactOverviewEnabled)
+        }
+    }
+
     // MARK: - Background Sync Settings
 
     /// Whether background sync is enabled (default: false)
@@ -233,6 +240,7 @@ public final class AppSettings {
         self.burnRateThreshold = repository.burnRateThreshold()
         self.showDailyUsageCards = repository.showDailyUsageCards()
         self.overviewModeEnabled = repository.overviewModeEnabled()
+        self.compactOverviewEnabled = repository.compactOverviewEnabled()
         self.backgroundSyncEnabled = repository.backgroundSyncEnabled()
         self.backgroundSyncInterval = repository.backgroundSyncInterval()
         self.menuBarPercentageEnabled = repository.menuBarPercentageEnabled()
