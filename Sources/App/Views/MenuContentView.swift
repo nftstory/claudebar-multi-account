@@ -516,7 +516,9 @@ struct MenuContentView: View {
     }
 
     private func compactQuotaLabel(_ quota: UsageQuota) -> String {
-        (quota.compactTitle ?? quota.quotaType.displayName).uppercased()
+        let title = quota.compactTitle ?? quota.quotaType.displayName
+        let firstWord = title.firstIndex(of: " ").map { title[..<$0] } ?? title[...]
+        return firstWord.uppercased()
     }
 
     @ViewBuilder
@@ -528,6 +530,7 @@ struct MenuContentView: View {
                 .foregroundStyle(theme.textTertiary)
                 .tracking(0.5)
                 .lineLimit(1)
+                .minimumScaleFactor(0.7)
                 .opacity(displayedLabel.isEmpty ? 0 : 1)
 
             if let quota {
@@ -556,6 +559,7 @@ struct MenuContentView: View {
                         .font(.system(size: 9.5, design: theme.fontDesign))
                         .foregroundStyle(theme.textTertiary)
                         .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 } else {
                     Text(" ")
                         .font(.system(size: 9.5, design: theme.fontDesign))
@@ -578,19 +582,17 @@ struct MenuContentView: View {
     }
 
     private func compactResetText(for quota: UsageQuota) -> String? {
-        if let resetText = quota.resetText {
-            return resetText
+        if let resetsAt = quota.resetsAt {
+            return CompactResetFormatter.string(until: resetsAt, now: Date())
         }
-        guard let countdown = quota.resetTimestampDescription else {
-            return nil
+
+        guard let resetText = quota.resetText else { return nil }
+        for prefix in ["Resets in ", "Resets "] {
+            if let range = resetText.range(of: prefix, options: [.anchored, .caseInsensitive]) {
+                return String(resetText[range.upperBound...])
+            }
         }
-        if countdown.hasPrefix("Resets in ") {
-            return String(countdown.dropFirst("Resets in ".count))
-        }
-        if countdown.hasPrefix("Resets ") {
-            return String(countdown.dropFirst("Resets ".count))
-        }
-        return countdown
+        return resetText
     }
 
     private func providerSection(provider: any AIProvider) -> some View {
