@@ -31,6 +31,7 @@ struct InteractiveRunnerTests {
     func `Options defaults environmentExclusions to empty`() {
         let options = InteractiveRunner.Options()
         #expect(options.environmentExclusions.isEmpty)
+        #expect(options.environmentOverrides.isEmpty)
     }
 
     @Test
@@ -74,6 +75,18 @@ struct InteractiveRunnerTests {
         )
 
         #expect(result.output.contains("CLAUDEBAR_TEST_PRESERVE_VAR=should_be_present"))
+    }
+
+    @Test
+    func `run with environmentOverrides sets env vars in subprocess`() throws {
+        let runner = InteractiveRunner()
+        let result = try runner.run(
+            binary: "/usr/bin/env",
+            input: "",
+            options: .init(environmentOverrides: ["CLAUDEBAR_TEST_OVERRIDE_VAR": "overridden"])
+        )
+
+        #expect(result.output.contains("CLAUDEBAR_TEST_OVERRIDE_VAR=overridden"))
     }
 }
 

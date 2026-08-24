@@ -82,7 +82,7 @@ public final class NotificationAlerter: QuotaAlerter, @unchecked Sendable {
 
     func providerDisplayName(for providerId: String) -> String {
         switch providerId {
-        case "claude": return "Claude"
+        case let id where id.hasPrefix("claude"): return "Claude"
         case "codex": return "Codex"
         case "gemini": return "Gemini"
         case "copilot": return "GitHub Copilot"

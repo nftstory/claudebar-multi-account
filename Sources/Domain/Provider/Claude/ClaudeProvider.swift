@@ -9,8 +9,8 @@ import Observation
 public final class ClaudeProvider: AIProvider {
     // MARK: - Identity (Protocol Requirement)
 
-    public let id: String = "claude"
-    public let name: String = "Claude"
+    public let id: String
+    public let name: String
     public let cliCommand: String = "claude"
 
     public var dashboardURL: URL? {
@@ -55,6 +55,7 @@ public final class ClaudeProvider: AIProvider {
     /// The current probe mode (CLI or API)
     public var probeMode: ClaudeProbeMode {
         get {
+            guard id == "claude" else { return .cli }
             // Only use ClaudeSettingsRepository if available
             if let claudeSettings = settingsRepository as? ClaudeSettingsRepository {
                 return claudeSettings.claudeProbeMode()
@@ -62,6 +63,7 @@ public final class ClaudeProvider: AIProvider {
             return .cli
         }
         set {
+            guard id == "claude" else { return }
             if let claudeSettings = settingsRepository as? ClaudeSettingsRepository {
                 claudeSettings.setClaudeProbeMode(newValue)
             }
@@ -117,17 +119,21 @@ public final class ClaudeProvider: AIProvider {
     ///   - settingsRepository: The repository for persisting settings
     public init(
         probe: any UsageProbe,
+        id: String = "claude",
+        displayName: String? = nil,
         passProbe: (any ClaudePassProbing)? = nil,
         settingsRepository: any ProviderSettingsRepository,
         dailyUsageAnalyzer: (any DailyUsageAnalyzing)? = nil
     ) {
+        self.id = id
+        self.name = displayName ?? "Claude"
         self.cliProbe = probe
         self.apiProbe = nil
         self.passProbe = passProbe
         self.settingsRepository = settingsRepository
         self.dailyUsageAnalyzer = dailyUsageAnalyzer
         // Load persisted enabled state (defaults to true)
-        self.isEnabled = settingsRepository.isEnabled(forProvider: "claude")
+        self.isEnabled = settingsRepository.isEnabled(forProvider: id)
     }
 
     /// Creates a Claude provider with both CLI and API probes
@@ -139,17 +145,21 @@ public final class ClaudeProvider: AIProvider {
     public init(
         cliProbe: any UsageProbe,
         apiProbe: any UsageProbe,
+        id: String = "claude",
+        displayName: String? = nil,
         passProbe: (any ClaudePassProbing)? = nil,
         settingsRepository: any ClaudeSettingsRepository,
         dailyUsageAnalyzer: (any DailyUsageAnalyzing)? = nil
     ) {
+        self.id = id
+        self.name = displayName ?? "Claude"
         self.cliProbe = cliProbe
         self.apiProbe = apiProbe
         self.passProbe = passProbe
         self.settingsRepository = settingsRepository
         self.dailyUsageAnalyzer = dailyUsageAnalyzer
         // Load persisted enabled state (defaults to true)
-        self.isEnabled = settingsRepository.isEnabled(forProvider: "claude")
+        self.isEnabled = settingsRepository.isEnabled(forProvider: id)
     }
 
     // MARK: - AIProvider Protocol

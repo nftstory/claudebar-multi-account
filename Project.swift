@@ -182,6 +182,14 @@ let project = Project(
     ],
     schemes: [
         .scheme(
+            name: "DomainTests",
+            shared: true,
+            testAction: .targets(
+                [.testableTarget(target: .target("DomainTests"))],
+                configuration: .debug
+            )
+        ),
+        .scheme(
             name: "ClaudeBar",
             shared: true,
             buildAction: .buildAction(targets: ["ClaudeBar"]),

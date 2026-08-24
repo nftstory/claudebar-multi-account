@@ -70,6 +70,25 @@ struct ClaudeAccountInfoResolverTests {
     }
 
     @Test
+    func `reads account info from explicit config directory`() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+        let configFile = tempDir.appendingPathComponent(".claude.json")
+        try """
+        {
+            "oauthAccount": {
+                "emailAddress": "profile@example.com"
+            }
+        }
+        """.write(to: configFile, atomically: true, encoding: .utf8)
+
+        let resolver = ClaudeAccountInfoResolver(configDir: tempDir.path)
+
+        #expect(resolver.resolve()?.email == "profile@example.com")
+    }
+
+    @Test
     func `returns nil when oauthAccount section is missing`() {
         let resolver = makeResolverWithConfig("""
         { "numStartups": 100 }

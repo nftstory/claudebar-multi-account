@@ -226,7 +226,7 @@ private struct ProviderDetailView: View {
     @ViewBuilder
     private var configCard: some View {
         switch provider.id {
-        case "claude":
+        case let id where id.hasPrefix("claude"):
             ClaudeConfigCard(monitor: monitor)
         case "codex":
             CodexConfigCard(monitor: monitor)

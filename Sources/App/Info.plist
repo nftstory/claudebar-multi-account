@@ -30,12 +30,10 @@
     <string>Copyright 2025 TDDWorks. All rights reserved.</string>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
-    <key>SUFeedURL</key>
-    <string>https://tddworks.github.io/ClaudeBar/appcast.xml</string>
     <key>SUPublicEDKey</key>
     <string>2Kn6vvvrrNqgAWrzOiq5Ae+abMjEqlu2MOOM/YBlsw0=</string>
     <key>SUEnableAutomaticChecks</key>
-    <true/>
+    <false/>
     <key>SUAutomaticallyUpdate</key>
     <false/>
     <key>NSSupportsLiveActivities</key>

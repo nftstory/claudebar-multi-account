@@ -539,7 +539,7 @@ enum ProviderVisualIdentityLookup {
     /// Get provider theme color by ID
     static func color(for providerId: String, scheme: ColorScheme) -> Color {
         switch providerId {
-        case "claude":
+        case let id where id.hasPrefix("claude"):
             return scheme == .dark
                 ? BaseTheme.coralAccent
                 : Color(red: 0.95, green: 0.48, blue: 0.38)
@@ -624,7 +624,7 @@ enum ProviderVisualIdentityLookup {
         let secondaryColor: Color
 
         switch providerId {
-        case "claude":
+        case let id where id.hasPrefix("claude"):
             secondaryColor = scheme == .dark
                 ? BaseTheme.pinkHot
                 : Color(red: 0.92, green: 0.45, blue: 0.72)
@@ -714,7 +714,7 @@ enum ProviderVisualIdentityLookup {
     /// Get provider icon asset name by ID
     static func iconAssetName(for providerId: String) -> String {
         switch providerId {
-        case "claude": return "ClaudeIcon"
+        case let id where id.hasPrefix("claude"): return "ClaudeIcon"
         case "codex": return "CodexIcon"
         case "gemini": return "GeminiIcon"
         case "copilot": return "CopilotIcon"
@@ -739,7 +739,7 @@ enum ProviderVisualIdentityLookup {
     /// Get provider display name by ID
     static func name(for providerId: String) -> String {
         switch providerId {
-        case "claude": return "Claude"
+        case let id where id.hasPrefix("claude"): return "Claude"
         case "codex": return "Codex"
         case "gemini": return "Gemini"
         case "copilot": return "GitHub Copilot"
@@ -764,7 +764,7 @@ enum ProviderVisualIdentityLookup {
     /// Get provider SF symbol icon by ID
     static func symbolIcon(for providerId: String) -> String {
         switch providerId {
-        case "claude": return "brain.fill"
+        case let id where id.hasPrefix("claude"): return "brain.fill"
         case "codex": return "chevron.left.forwardslash.chevron.right"
         case "gemini": return "sparkles"
         case "copilot": return "chevron.left.forwardslash.chevron.right"

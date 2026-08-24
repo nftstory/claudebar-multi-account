@@ -7,11 +7,11 @@ import Domain
 public final class ClaudeAccountInfoResolver: AccountInfoResolving, Sendable {
     private let configURL: URL
 
-    public init(configURL: URL? = nil) {
+    public init(configDir: String? = nil, configURL: URL? = nil) {
         self.configURL = configURL ?? {
-            let configDir = ProcessInfo.processInfo.environment["CLAUDE_CONFIG_DIR"]
+            let directory = configDir
                 .map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath, isDirectory: true) }
-            return (configDir ?? FileManager.default.homeDirectoryForCurrentUser)
+            return (directory ?? FileManager.default.homeDirectoryForCurrentUser)
                 .appendingPathComponent(".claude.json")
         }()
     }

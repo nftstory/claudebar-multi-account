@@ -60,14 +60,29 @@ struct ClaudeBarApp: App {
         // Create all providers with their probes (rich domain models)
         // Each provider manages its own isEnabled state (persisted via ProviderSettingsRepository)
         // Each probe checks isAvailable() for credentials/prerequisites
-        let repository = AIProviders(providers: [
+        let extraClaudeAccounts: [ClaudeExtraAccount] = JSONSettingsStore.shared.readDecodable(
+            key: "claude.extraAccounts"
+        ) ?? []
+        var providers: [any AIProvider] = [
             ClaudeProvider(
                 cliProbe: ClaudeUsageProbe(),
                 apiProbe: ClaudeAPIUsageProbe(),
+                displayName: extraClaudeAccounts.isEmpty ? nil : "Claude · ccn",
                 passProbe: ClaudePassProbe(),
                 settingsRepository: settingsRepository,
                 dailyUsageAnalyzer: ClaudeDailyUsageAnalyzer()
             ),
+        ]
+        providers.append(contentsOf: extraClaudeAccounts.map { account -> any AIProvider in
+            ClaudeProvider(
+                probe: ClaudeUsageProbe(configDir: account.configDir),
+                id: account.id,
+                displayName: account.label,
+                settingsRepository: settingsRepository,
+                dailyUsageAnalyzer: ClaudeDailyUsageAnalyzer(claudeDir: account.configDirectoryURL)
+            )
+        })
+        let remainingProviders: [any AIProvider] = [
             CodexProvider(
                 rpcProbe: CodexUsageProbe(),
                 apiProbe: CodexAPIUsageProbe(),
@@ -128,7 +143,9 @@ struct ClaudeBarApp: App {
                 probe: GrokUsageProbe(),
                 settingsRepository: settingsRepository
             ),
-        ])
+        ]
+        providers.append(contentsOf: remainingProviders)
+        let repository = AIProviders(providers: providers)
         AppLog.providers.info("Created \(repository.all.count) providers")
 
         // Initialize the domain service with quota alerter

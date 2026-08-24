@@ -28,6 +28,21 @@ public final class JSONSettingsStore: @unchecked Sendable {
         return resolveRead(dict: dict, keyPath: key.split(separator: ".").map(String.init)) as? T
     }
 
+    /// Decodes a Codable value stored at a dot-notation key path.
+    public func readDecodable<T: Decodable>(key: String) -> T? {
+        let dict = readFile()
+        guard let value = resolveRead(
+            dict: dict,
+            keyPath: key.split(separator: ".").map(String.init)
+        ),
+        JSONSerialization.isValidJSONObject(value),
+        let data = try? JSONSerialization.data(withJSONObject: value),
+        let decoded = try? JSONDecoder().decode(T.self, from: data) else {
+            return nil
+        }
+        return decoded
+    }
+
     /// Writes a value for the given key path (dot-notation supported).
     /// Pass nil to remove the key. Creates the file and parent directories if needed.
     public func write(value: Any?, key: String) {

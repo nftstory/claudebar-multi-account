@@ -89,7 +89,7 @@ struct ProviderIconView: View {
 
     private func providerSymbol(for providerId: String) -> String {
         switch providerId {
-        case "claude": return "brain.head.profile"
+        case let id where id.hasPrefix("claude"): return "brain.head.profile"
         case "codex": return "chevron.left.forwardslash.chevron.right"
         case "gemini": return "sparkles"
         case "zai": return "z.square.fill"

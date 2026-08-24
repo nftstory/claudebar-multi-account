@@ -606,7 +606,7 @@ extension AppTheme {
     /// Get provider theme color by ID
     static func providerColor(for providerId: String, scheme: ColorScheme) -> Color {
         switch providerId {
-        case "claude":
+        case let id where id.hasPrefix("claude"):
             return coralAccent(for: scheme)
         case "codex":
             return tealBright(for: scheme)
@@ -672,7 +672,7 @@ extension AppTheme {
         let secondaryColor: Color
 
         switch providerId {
-        case "claude":
+        case let id where id.hasPrefix("claude"):
             secondaryColor = pinkHot(for: scheme)
         case "codex":
             secondaryColor = scheme == .dark
@@ -744,7 +744,7 @@ extension AppTheme {
     /// Get provider icon asset name by ID
     static func providerIconAssetName(for providerId: String) -> String {
         switch providerId {
-        case "claude": return "ClaudeIcon"
+        case let id where id.hasPrefix("claude"): return "ClaudeIcon"
         case "codex": return "CodexIcon"
         case "gemini": return "GeminiIcon"
         case "copilot": return "CopilotIcon"
@@ -765,7 +765,7 @@ extension AppTheme {
     /// Get provider display name by ID
     static func providerName(for providerId: String) -> String {
         switch providerId {
-        case "claude": return "Claude"
+        case let id where id.hasPrefix("claude"): return "Claude"
         case "codex": return "Codex"
         case "gemini": return "Gemini"
         case "copilot": return "GitHub Copilot"
@@ -786,7 +786,7 @@ extension AppTheme {
     /// Get provider SF symbol icon by ID
     static func providerSymbolIcon(for providerId: String) -> String {
         switch providerId {
-        case "claude": return "brain.fill"
+        case let id where id.hasPrefix("claude"): return "brain.fill"
         case "codex": return "chevron.left.forwardslash.chevron.right"
         case "gemini": return "sparkles"
         case "copilot": return "chevron.left.forwardslash.chevron.right"
@@ -974,7 +974,6 @@ extension View {
         modifier(ThemeProvider(themeMode: mode))
     }
 }
-
 
 
 

@@ -32,6 +32,51 @@ struct ClaudeProviderTests {
     }
 
     @Test
+    func `claude provider accepts an injected id and display name`() {
+        let settings = makeSettingsRepository()
+        let claude = ClaudeProvider(
+            probe: MockUsageProbe(),
+            id: "claude-devops",
+            displayName: "Claude · ccd",
+            settingsRepository: settings
+        )
+
+        #expect(claude.id == "claude-devops")
+        #expect(claude.name == "Claude · ccd")
+        verify(settings).isEnabled(forProvider: .value("claude-devops")).called(1)
+    }
+
+    @Test
+    func `injected claude id is used to persist enabled state`() {
+        let settings = makeSettingsRepository()
+        let claude = ClaudeProvider(
+            probe: MockUsageProbe(),
+            id: "claude-creative",
+            settingsRepository: settings
+        )
+
+        claude.isEnabled = false
+
+        verify(settings).setEnabled(.value(false), forProvider: .value("claude-creative")).called(1)
+    }
+
+    @Test
+    func `injected claude provider always uses CLI mode`() async {
+        let settings = FakeClaudeSettings(probeMode: .api, cliFallbackEnabled: false)
+        let cliProbe = MockUsageProbe()
+        given(cliProbe).isAvailable().willReturn(true)
+        let claude = ClaudeProvider(
+            probe: cliProbe,
+            id: "claude-devops",
+            settingsRepository: settings
+        )
+
+        #expect(claude.probeMode == .cli)
+        #expect(claude.backgroundRefreshFloor == nil)
+        #expect(await claude.isAvailable())
+    }
+
+    @Test
     func `claude provider has correct cliCommand`() {
         let settings = makeSettingsRepository()
         let claude = ClaudeProvider(probe: MockUsageProbe(), settingsRepository: settings)

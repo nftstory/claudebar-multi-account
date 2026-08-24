@@ -39,19 +39,23 @@ public struct InteractiveRunner: Sendable {
         /// Use this to prevent env vars like `CLAUDE_CODE_OAUTH_TOKEN` from being
         /// inherited by the subprocess, forcing it to use stored credentials instead.
         public var environmentExclusions: [String]
+        /// Environment variable values to set for the subprocess.
+        public var environmentOverrides: [String: String]
 
         public init(
             timeout: TimeInterval = 20.0,
             workingDirectory: URL? = nil,
             arguments: [String] = [],
             autoResponses: [String: String] = [:],
-            environmentExclusions: [String] = []
+            environmentExclusions: [String] = [],
+            environmentOverrides: [String: String] = [:]
         ) {
             self.timeout = timeout
             self.workingDirectory = workingDirectory
             self.arguments = arguments
             self.autoResponses = autoResponses
             self.environmentExclusions = environmentExclusions
+            self.environmentOverrides = environmentOverrides
         }
     }
 
@@ -213,6 +217,7 @@ public struct InteractiveRunner: Sendable {
         process.standardOutput = terminalHandle
         process.standardError = terminalHandle
         process.environment = Self.terminalEnvironment(excluding: options.environmentExclusions)
+            .merging(options.environmentOverrides) { _, override in override }
         // Inherit the ambient probe QoS: the background monitoring loop binds
         // `.utility` so the spawned CLI tree runs on efficiency cores / throttled,
         // cutting idle heat (issue #204). Interactive runs stay `.default`.
