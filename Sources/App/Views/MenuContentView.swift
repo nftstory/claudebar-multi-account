@@ -378,7 +378,7 @@ struct MenuContentView: View {
                     .foregroundStyle(theme.textPrimary)
                     .lineLimit(1)
             }
-            .frame(width: 112, alignment: .leading)
+            .frame(width: 100, alignment: .leading)
 
             if let snapshot = provider.snapshot {
                 compactQuotaCell(label: "5H", quota: snapshot.sessionQuota)
@@ -392,6 +392,8 @@ struct MenuContentView: View {
                     quota: extraQuota
                 )
                 .frame(maxWidth: .infinity)
+
+                compactResetColumn(snapshot: snapshot)
             } else if provider.isSyncing {
                 LoadingSpinnerView(isCompact: true)
                     .frame(maxWidth: .infinity)
@@ -436,17 +438,6 @@ struct MenuContentView: View {
                 }
                 .frame(height: 3)
 
-                if let resetText = compactResetText(for: quota) {
-                    Text(resetText)
-                        .font(.system(size: 9.5, design: theme.fontDesign))
-                        .foregroundStyle(theme.textTertiary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                } else {
-                    Text(" ")
-                        .font(.system(size: 9.5, design: theme.fontDesign))
-                        .hidden()
-                }
             } else {
                 Text("—")
                     .font(.system(size: 15, design: .rounded))
@@ -456,25 +447,27 @@ struct MenuContentView: View {
                 Color.clear
                     .frame(height: 3)
 
-                Text(" ")
-                    .font(.system(size: 9.5, design: theme.fontDesign))
-                    .hidden()
             }
         }
+        .frame(height: 40, alignment: .top)
     }
 
-    private func compactResetText(for quota: UsageQuota) -> String? {
-        if let resetsAt = quota.resetsAt {
-            return CompactResetFormatter.string(until: resetsAt, now: Date())
-        }
-
-        guard let resetText = quota.resetText else { return nil }
-        for prefix in ["Resets in ", "Resets "] {
-            if let range = resetText.range(of: prefix, options: [.anchored, .caseInsensitive]) {
-                return String(resetText[range.upperBound...])
+    private func compactResetColumn(snapshot: UsageSnapshot) -> some View {
+        VStack(alignment: .trailing, spacing: 1) {
+            ForEach(
+                Array(CompactResetFormatter.lines(for: snapshot, now: Date()).enumerated()),
+                id: \.offset
+            ) { _, line in
+                Text(line)
+                    .font(.system(size: 9.5, design: theme.fontDesign))
+                    .foregroundStyle(theme.textTertiary)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
         }
-        return resetText
+        .frame(width: 92, height: 40, alignment: .trailing)
     }
 
     private func providerSection(provider: any AIProvider) -> some View {
