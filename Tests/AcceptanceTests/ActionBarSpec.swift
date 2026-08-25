@@ -6,7 +6,7 @@ import Mockable
 
 /// Feature: Action Bar
 ///
-/// Users interact with action buttons: Dashboard, Refresh, Share, Settings, Quit.
+/// Users interact with action buttons: Dashboard, Refresh, Share, Settings.
 ///
 /// Behaviors covered:
 /// - #24: User clicks Dashboard → opens provider's web dashboard in browser

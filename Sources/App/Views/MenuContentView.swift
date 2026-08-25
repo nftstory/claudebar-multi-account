@@ -230,53 +230,6 @@ struct MenuContentView: View {
         }
     }
 
-    // MARK: - Status Badge
-
-    /// Status of the currently selected provider
-    private var selectedProviderStatus: QuotaStatus {
-        guard let snapshot = selectedProvider?.snapshot else { return .healthy }
-        if settings.burnRateWarningEnabled {
-            return snapshot.paceAwareOverallStatus(burnRateThreshold: settings.burnRateThreshold)
-        }
-        return snapshot.overallStatus
-    }
-
-    /// Whether the selected provider is currently syncing
-    private var isSelectedProviderSyncing: Bool {
-        selectedProvider?.isSyncing ?? false
-    }
-
-    private var statusBadge: some View {
-        let statusColor = theme.statusColor(for: selectedProviderStatus)
-
-        return HStack(spacing: 6) {
-            // Animated pulse dot
-            PulsingStatusDot(
-                color: statusColor,
-                isSyncing: isSelectedProviderSyncing
-            )
-
-            Text(statusText)
-                .font(.system(size: 11, weight: .medium, design: theme.fontDesign))
-                .foregroundStyle(theme.textPrimary)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(
-            RoundedRectangle(cornerRadius: theme.pillCornerRadius)
-                .fill(theme.glassBackground)
-                .overlay(
-                    RoundedRectangle(cornerRadius: theme.pillCornerRadius)
-                        .stroke(statusColor.opacity(0.5), lineWidth: 1)
-                )
-        )
-    }
-
-    private var statusText: String {
-        if isSelectedProviderSyncing { return "Syncing..." }
-        return selectedProviderStatus.badgeText
-    }
-
     /// Help text for settings button, includes update info if available
     private var updateAvailableHelpText: String {
         #if ENABLE_SPARKLE
@@ -940,27 +893,6 @@ struct MenuContentView: View {
             .help(updateAvailableHelpText)
             .keyboardShortcut(",")
 
-            // Quit Button
-            Button {
-                NSApplication.shared.terminate(nil)
-            } label: {
-                ZStack {
-                    Circle()
-                        .fill(theme.glassBackground)
-                        .frame(width: 32, height: 32)
-
-                    Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(theme.textSecondary)
-                }
-            }
-            .buttonStyle(.plain)
-            .help("Quit ClaudeBar")
-            .keyboardShortcut("q")
-
-            // Status is the final item at the far right.
-            statusBadge
-                .fixedSize(horizontal: true, vertical: false)
         }
         .opacity(animateIn ? 1 : 0)
         .animation(.easeOut(duration: 0.5).delay(0.3), value: animateIn)
@@ -1569,65 +1501,6 @@ extension LinearGradient {
     var stops: [Gradient.Stop] {
         // Default empty - used for animation color extraction
         []
-    }
-}
-
-// MARK: - Pulsing Status Dot
-
-/// A status dot that pulses when syncing, with proper animation lifecycle management.
-struct PulsingStatusDot: View {
-    let color: Color
-    let isSyncing: Bool
-
-    @State private var pulsePhase: CGFloat = 0
-
-    var body: some View {
-        ZStack {
-            // Solid center dot
-            Circle()
-                .fill(color)
-                .frame(width: 8, height: 8)
-
-            // Pulsing ring (only visible when syncing)
-            if isSyncing {
-                Circle()
-                    .stroke(color, lineWidth: 2)
-                    .frame(width: 16, height: 16)
-                    .scaleEffect(1 + pulsePhase * 0.5)
-                    .opacity(1 - pulsePhase)
-            } else {
-                // Static ring when not syncing
-                Circle()
-                    .stroke(color, lineWidth: 2)
-                    .frame(width: 16, height: 16)
-                    .opacity(0.5)
-            }
-        }
-        .onChange(of: isSyncing) { _, syncing in
-            if syncing {
-                startPulsing()
-            } else {
-                stopPulsing()
-            }
-        }
-        .onAppear {
-            if isSyncing {
-                startPulsing()
-            }
-        }
-    }
-
-    private func startPulsing() {
-        pulsePhase = 0
-        withAnimation(.easeOut(duration: 1.0).repeatForever(autoreverses: false)) {
-            pulsePhase = 1
-        }
-    }
-
-    private func stopPulsing() {
-        withAnimation(.easeOut(duration: 0.3)) {
-            pulsePhase = 0
-        }
     }
 }
 
