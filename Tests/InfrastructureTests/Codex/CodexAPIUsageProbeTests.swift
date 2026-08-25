@@ -51,6 +51,28 @@ struct CodexAPIUsageProbeTests {
         try data.write(to: filePath)
     }
 
+    private func snapshot(
+        responseJSON: String,
+        headers: [String: String]? = nil
+    ) async throws -> UsageSnapshot {
+        let tempDir = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+        try createAuthFile(at: tempDir)
+
+        let mockNetwork = MockNetworkClient()
+        let response = HTTPURLResponse(
+            url: URL(string: "https://chatgpt.com")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: headers
+        )!
+        given(mockNetwork).request(.any).willReturn((Data(responseJSON.utf8), response))
+
+        let loader = CodexCredentialLoader(homeDirectory: tempDir.path)
+        let probe = CodexAPIUsageProbe(credentialLoader: loader, networkClient: mockNetwork)
+        return try await probe.probe()
+    }
+
     // MARK: - isAvailable Tests
 
     @Test
@@ -186,6 +208,130 @@ struct CodexAPIUsageProbeTests {
         let weeklyQuota = snapshot.quotas.first { $0.quotaType == .weekly }
         #expect(weeklyQuota != nil)
         #expect(weeklyQuota?.percentRemaining == 40.0) // 100 - 60
+    }
+
+    @Test
+    func `probe maps single seven day API window to weekly quota`() async throws {
+        let snapshot = try await snapshot(responseJSON: """
+        {
+          "rate_limit": {
+            "primary_window": {
+              "used_percent": 20.0,
+              "limit_window_seconds": 604800,
+              "reset_after_seconds": 518400
+            }
+          }
+        }
+        """)
+
+        #expect(snapshot.quotas.count == 1)
+        #expect(snapshot.weeklyQuota?.percentRemaining == 80)
+        #expect(snapshot.weeklyQuota?.windowDuration == TimeInterval(7 * 24 * 60 * 60))
+        #expect(snapshot.weeklyQuota?.resetsAt != nil)
+        #expect(snapshot.sessionQuota == nil)
+    }
+
+    @Test
+    func `probe maps five hour and seven day API windows independently`() async throws {
+        let snapshot = try await snapshot(responseJSON: """
+        {
+          "rate_limit": {
+            "primary_window": {
+              "used_percent": 30.0,
+              "request_window_seconds_value": 18000,
+              "reset_after_seconds": 3600
+            },
+            "secondary_window": {
+              "used_percent": 60.0,
+              "limit_window_seconds": 604800,
+              "reset_after_seconds": 432000
+            }
+          }
+        }
+        """)
+
+        #expect(snapshot.quotas.count == 2)
+        #expect(snapshot.sessionQuota?.percentRemaining == 70)
+        #expect(snapshot.sessionQuota?.windowDuration == TimeInterval(5 * 60 * 60))
+        #expect(snapshot.weeklyQuota?.percentRemaining == 40)
+        #expect(snapshot.weeklyQuota?.windowDuration == TimeInterval(7 * 24 * 60 * 60))
+    }
+
+    @Test
+    func `probe infers weekly API quota when reset is six days away`() async throws {
+        let snapshot = try await snapshot(responseJSON: """
+        {
+          "rate_limit": {
+            "primary_window": {
+              "used_percent": 35.0,
+              "reset_after_seconds": 518400
+            }
+          }
+        }
+        """)
+
+        #expect(snapshot.quotas.count == 1)
+        #expect(snapshot.weeklyQuota?.percentRemaining == 65)
+        #expect(snapshot.weeklyQuota?.windowDuration == nil)
+        #expect(snapshot.weeklyQuota?.resetsAt != nil)
+        #expect(snapshot.sessionQuota == nil)
+    }
+
+    @Test
+    func `probe classifies header quota using body window duration`() async throws {
+        let snapshot = try await snapshot(
+            responseJSON: """
+            {
+              "rate_limit": {
+                "primary_window": {
+                  "limit_window_seconds": 604800,
+                  "reset_after_seconds": 518400
+                }
+              }
+            }
+            """,
+            headers: ["x-codex-primary-used-percent": "25"]
+        )
+
+        #expect(snapshot.quotas.count == 1)
+        #expect(snapshot.weeklyQuota?.percentRemaining == 75)
+        #expect(snapshot.sessionQuota == nil)
+    }
+
+    @Test
+    func `probe keeps positional header classification when body has no windows`() async throws {
+        let snapshot = try await snapshot(
+            responseJSON: "{}",
+            headers: [
+                "x-codex-primary-used-percent": "25",
+                "x-codex-secondary-used-percent": "45",
+            ]
+        )
+
+        #expect(snapshot.quotas.map(\.quotaType) == [.session, .weekly])
+        #expect(snapshot.sessionQuota?.percentRemaining == 75)
+        #expect(snapshot.weeklyQuota?.percentRemaining == 55)
+    }
+
+    @Test
+    func `probe maps duplicate API classifications to secondary time limit`() async throws {
+        let snapshot = try await snapshot(responseJSON: """
+        {
+          "rate_limit": {
+            "primary_window": {
+              "used_percent": 10.0,
+              "limit_window_seconds": 18000
+            },
+            "secondary_window": {
+              "used_percent": 20.0,
+              "limit_window_seconds": 28800
+            }
+          }
+        }
+        """)
+
+        #expect(snapshot.quotas.map(\.quotaType) == [.session, .timeLimit("Secondary")])
+        #expect(snapshot.quotas[1].windowDuration == TimeInterval(8 * 60 * 60))
     }
 
     // MARK: - Plan Type Tests

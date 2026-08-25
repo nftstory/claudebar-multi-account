@@ -227,45 +227,45 @@ public struct CodexAPIUsageProbe: UsageProbe, @unchecked Sendable {
         // Try headers first (preferred), then fall back to body
         let headerPrimary = readHeaderDouble(httpResponse, key: "x-codex-primary-used-percent")
         let headerSecondary = readHeaderDouble(httpResponse, key: "x-codex-secondary-used-percent")
+        var firstClassification: QuotaType?
+
+        func appendQuota(usedPercent: Double, window: [String: Any]?, positionalFallback: QuotaType) {
+            let windowDuration = windowDurationSeconds(window)
+            let resetsAt = resetsAtDate(nowSeconds: nowSeconds, window: window)
+            let classification = window.map { _ in
+                quotaType(windowDuration: windowDuration, resetsAt: resetsAt, nowSeconds: nowSeconds)
+            } ?? positionalFallback
+            let emittedType: QuotaType = classification == firstClassification
+                ? .timeLimit("Secondary")
+                : classification
+
+            quotas.append(UsageQuota(
+                percentRemaining: max(0, 100 - usedPercent),
+                quotaType: emittedType,
+                providerId: "codex",
+                resetsAt: resetsAt,
+                resetText: formatResetText(resetsAt),
+                windowDuration: windowDuration
+            ))
+            if firstClassification == nil {
+                firstClassification = classification
+            }
+        }
 
         if let primary = headerPrimary {
-            quotas.append(UsageQuota(
-                percentRemaining: max(0, 100 - primary),
-                quotaType: .session,
-                providerId: "codex",
-                resetsAt: resetsAtDate(nowSeconds: nowSeconds, window: primaryWindow),
-                resetText: formatResetText(resetsAtDate(nowSeconds: nowSeconds, window: primaryWindow))
-            ))
+            appendQuota(usedPercent: primary, window: primaryWindow, positionalFallback: .session)
         }
         if let secondary = headerSecondary {
-            quotas.append(UsageQuota(
-                percentRemaining: max(0, 100 - secondary),
-                quotaType: .weekly,
-                providerId: "codex",
-                resetsAt: resetsAtDate(nowSeconds: nowSeconds, window: secondaryWindow),
-                resetText: formatResetText(resetsAtDate(nowSeconds: nowSeconds, window: secondaryWindow))
-            ))
+            appendQuota(usedPercent: secondary, window: secondaryWindow, positionalFallback: .weekly)
         }
 
         // Fall back to body if headers not present
         if quotas.isEmpty {
-            if let usedPercent = primaryWindow?["used_percent"] as? Double {
-                quotas.append(UsageQuota(
-                    percentRemaining: max(0, 100 - usedPercent),
-                    quotaType: .session,
-                    providerId: "codex",
-                    resetsAt: resetsAtDate(nowSeconds: nowSeconds, window: primaryWindow),
-                    resetText: formatResetText(resetsAtDate(nowSeconds: nowSeconds, window: primaryWindow))
-                ))
+            if let usedPercent = number(from: primaryWindow?["used_percent"]) {
+                appendQuota(usedPercent: usedPercent, window: primaryWindow, positionalFallback: .session)
             }
-            if let usedPercent = secondaryWindow?["used_percent"] as? Double {
-                quotas.append(UsageQuota(
-                    percentRemaining: max(0, 100 - usedPercent),
-                    quotaType: .weekly,
-                    providerId: "codex",
-                    resetsAt: resetsAtDate(nowSeconds: nowSeconds, window: secondaryWindow),
-                    resetText: formatResetText(resetsAtDate(nowSeconds: nowSeconds, window: secondaryWindow))
-                ))
+            if let usedPercent = number(from: secondaryWindow?["used_percent"]) {
+                appendQuota(usedPercent: usedPercent, window: secondaryWindow, positionalFallback: .weekly)
             }
         }
 
@@ -317,13 +317,45 @@ public struct CodexAPIUsageProbe: UsageProbe, @unchecked Sendable {
 
     private func resetsAtDate(nowSeconds: TimeInterval, window: [String: Any]?) -> Date? {
         guard let window else { return nil }
-        if let resetAt = window["reset_at"] as? Double {
+        if let resetAt = number(from: window["reset_at"]) {
             return Date(timeIntervalSince1970: resetAt)
         }
-        if let resetAfterSeconds = window["reset_after_seconds"] as? Double {
+        if let resetAfterSeconds = number(from: window["reset_after_seconds"]) {
             return Date(timeIntervalSince1970: nowSeconds + resetAfterSeconds)
         }
         return nil
+    }
+
+    private func windowDurationSeconds(_ window: [String: Any]?) -> TimeInterval? {
+        guard let window else { return nil }
+        if let duration = number(from: window["limit_window_seconds"]) {
+            return duration
+        }
+
+        let matchingKey = window.keys.sorted().first {
+            let normalized = $0.lowercased()
+            return normalized.contains("window") && normalized.contains("seconds")
+        }
+        return matchingKey.flatMap { number(from: window[$0]) }
+    }
+
+    private func quotaType(
+        windowDuration: TimeInterval?,
+        resetsAt: Date?,
+        nowSeconds: TimeInterval
+    ) -> QuotaType {
+        if let windowDuration {
+            return windowDuration >= 24 * 60 * 60 ? .weekly : .session
+        }
+        if let resetsAt,
+           resetsAt.timeIntervalSince1970 - nowSeconds > 24 * 60 * 60 {
+            return .weekly
+        }
+        return .session
+    }
+
+    private func number(from value: Any?) -> Double? {
+        (value as? NSNumber)?.doubleValue
     }
 
     private func formatResetText(_ date: Date?) -> String? {

@@ -173,6 +173,7 @@ struct DefaultCodexRPCClientTests {
 
         let window: [String: Any] = [
             "usedPercent": 45.5,
+            "windowDurationMins": 10080,
             "resetsAt": Int(Date().addingTimeInterval(3600).timeIntervalSince1970)
         ]
 
@@ -180,6 +181,34 @@ struct DefaultCodexRPCClientTests {
 
         #expect(result?.usedPercent == 45.5)
         #expect(result?.resetDescription?.contains("Resets in") == true)
+        #expect(result?.windowDuration == TimeInterval(7 * 24 * 60 * 60))
+        #expect(result?.resetsAt != nil)
+    }
+
+    @Test
+    func `parseWindow accepts windowMinutes duration alias`() {
+        let mockTransport = MockRPCTransport()
+        let client = DefaultCodexRPCClient(transport: mockTransport)
+
+        let result = client.parseWindow([
+            "usedPercent": 10,
+            "windowMinutes": 300,
+        ])
+
+        #expect(result?.windowDuration == TimeInterval(5 * 60 * 60))
+    }
+
+    @Test
+    func `parseWindow accepts windowDurationSeconds duration alias`() {
+        let mockTransport = MockRPCTransport()
+        let client = DefaultCodexRPCClient(transport: mockTransport)
+
+        let result = client.parseWindow([
+            "usedPercent": 10,
+            "windowDurationSeconds": 604800,
+        ])
+
+        #expect(result?.windowDuration == TimeInterval(7 * 24 * 60 * 60))
     }
 
     @Test

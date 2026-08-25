@@ -8,6 +8,7 @@ public final class DefaultCodexRPCClient: CodexRPCClient, @unchecked Sendable {
     private let cliExecutor: CLIExecutor
     private let transport: RPCTransport?
     private var nextID = 1
+    private var didLogWindowKeys = false
 
     /// Package-internal: allows tests to inject a mock transport for the production (no-injection) code path.
     var transportFactory: ((String, [String]) throws -> RPCTransport)?
@@ -159,11 +160,21 @@ public final class DefaultCodexRPCClient: CodexRPCClient, @unchecked Sendable {
 
         if let pct = fiveHourPct {
             // TTY shows "% left", convert to usedPercent
-            primary = CodexRateLimitWindow(usedPercent: Double(100 - pct), resetDescription: nil)
+            primary = CodexRateLimitWindow(
+                usedPercent: Double(100 - pct),
+                resetDescription: nil,
+                windowDuration: 5 * 60 * 60,
+                resetsAt: nil
+            )
         }
 
         if let pct = weeklyPct {
-            secondary = CodexRateLimitWindow(usedPercent: Double(100 - pct), resetDescription: nil)
+            secondary = CodexRateLimitWindow(
+                usedPercent: Double(100 - pct),
+                resetDescription: nil,
+                windowDuration: 7 * 24 * 60 * 60,
+                resetsAt: nil
+            )
         }
 
         guard primary != nil || secondary != nil else {
@@ -210,20 +221,40 @@ public final class DefaultCodexRPCClient: CodexRPCClient, @unchecked Sendable {
             return nil
         }
 
-        AppLog.probes.debug("parseWindow dict keys: \(dict.keys.joined(separator: ", "))")
+        if !didLogWindowKeys {
+            AppLog.probes.debug("parseWindow dict keys: \(dict.keys.sorted().joined(separator: ", "))")
+            didLogWindowKeys = true
+        }
 
-        guard let usedPercent = dict["usedPercent"] as? Double else {
+        guard let usedPercent = number(from: dict["usedPercent"]) else {
             AppLog.probes.debug("parseWindow: no usedPercent in dict")
             return nil
         }
 
         var resetDescription: String?
-        if let resetsAt = dict["resetsAt"] as? Int {
-            let date = Date(timeIntervalSince1970: TimeInterval(resetsAt))
-            resetDescription = formatResetTime(date)
+        let resetsAt = number(from: dict["resetsAt"])
+            .map(Date.init(timeIntervalSince1970:))
+        if let resetsAt {
+            resetDescription = formatResetTime(resetsAt)
         }
 
-        return CodexRateLimitWindow(usedPercent: usedPercent, resetDescription: resetDescription)
+        let windowDuration: TimeInterval?
+        if let minutes = number(from: dict["windowDurationMins"]) ?? number(from: dict["windowMinutes"]) {
+            windowDuration = minutes * 60
+        } else {
+            windowDuration = number(from: dict["windowDurationSeconds"])
+        }
+
+        return CodexRateLimitWindow(
+            usedPercent: usedPercent,
+            resetDescription: resetDescription,
+            windowDuration: windowDuration,
+            resetsAt: resetsAt
+        )
+    }
+
+    private func number(from value: Any?) -> Double? {
+        (value as? NSNumber)?.doubleValue
     }
 
     internal func formatResetTime(_ date: Date) -> String {

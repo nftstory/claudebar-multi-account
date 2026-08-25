@@ -32,10 +32,26 @@ public struct CodexRateLimitsResponse: Sendable, Equatable {
 public struct CodexRateLimitWindow: Sendable, Equatable {
     public let usedPercent: Double
     public let resetDescription: String?
+    public let windowDuration: TimeInterval?
+    public let resetsAt: Date?
 
     public init(usedPercent: Double, resetDescription: String?) {
         self.usedPercent = usedPercent
         self.resetDescription = resetDescription
+        self.windowDuration = nil
+        self.resetsAt = nil
+    }
+
+    public init(
+        usedPercent: Double,
+        resetDescription: String?,
+        windowDuration: TimeInterval?,
+        resetsAt: Date?
+    ) {
+        self.usedPercent = usedPercent
+        self.resetDescription = resetDescription
+        self.windowDuration = windowDuration
+        self.resetsAt = resetsAt
     }
 }
 
@@ -68,23 +84,25 @@ public struct CodexUsageProbe: UsageProbe {
     /// Maps RPC rate limits response to a UsageSnapshot (internal for testing).
     internal static func mapRateLimitsToSnapshot(_ limits: CodexRateLimitsResponse) throws -> UsageSnapshot {
         var quotas: [UsageQuota] = []
+        var firstClassification: QuotaType?
+        let now = Date()
 
-        if let primary = limits.primary {
+        for window in [limits.primary, limits.secondary].compactMap({ $0 }) {
+            let classification = quotaType(for: window, now: now)
+            let emittedType: QuotaType = classification == firstClassification
+                ? .timeLimit("Secondary")
+                : classification
             quotas.append(UsageQuota(
-                percentRemaining: max(0, 100 - primary.usedPercent),
-                quotaType: .session,
+                percentRemaining: max(0, 100 - window.usedPercent),
+                quotaType: emittedType,
                 providerId: "codex",
-                resetText: primary.resetDescription
+                resetsAt: window.resetsAt,
+                resetText: window.resetDescription,
+                windowDuration: window.windowDuration
             ))
-        }
-
-        if let secondary = limits.secondary {
-            quotas.append(UsageQuota(
-                percentRemaining: max(0, 100 - secondary.usedPercent),
-                quotaType: .weekly,
-                providerId: "codex",
-                resetText: secondary.resetDescription
-            ))
+            if firstClassification == nil {
+                firstClassification = classification
+            }
         }
 
         guard !quotas.isEmpty else {
@@ -95,8 +113,19 @@ public struct CodexUsageProbe: UsageProbe {
         return UsageSnapshot(
             providerId: "codex",
             quotas: quotas,
-            capturedAt: Date()
+            capturedAt: now
         )
+    }
+
+    private static func quotaType(for window: CodexRateLimitWindow, now: Date) -> QuotaType {
+        if let duration = window.windowDuration {
+            return duration >= 24 * 60 * 60 ? .weekly : .session
+        }
+        if let resetsAt = window.resetsAt,
+           resetsAt.timeIntervalSince(now) > 24 * 60 * 60 {
+            return .weekly
+        }
+        return .session
     }
 
     // MARK: - Parsing (for TTY fallback)
@@ -200,4 +229,3 @@ public struct CodexUsageProbe: UsageProbe {
         return nil
     }
 }
-
