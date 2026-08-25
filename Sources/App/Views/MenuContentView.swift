@@ -59,16 +59,11 @@ struct MenuContentView: View {
 
             // Main Content
             VStack(spacing: 0) {
-                // Header with branding
-                headerView
-                    .padding(.horizontal, 16)
-                    .padding(.top, 16)
-                    .padding(.bottom, 12)
-
                 // Provider Pills (hidden in overview mode)
                 if !settings.overviewModeEnabled {
                     providerPills
                         .padding(.horizontal, 16)
+                        .padding(.top, 12)
                         .padding(.bottom, 16)
                 }
 
@@ -88,6 +83,7 @@ struct MenuContentView: View {
                         metricsContent
                     }
                     .padding(.horizontal, 16)
+                    .padding(.top, settings.overviewModeEnabled ? 12 : 0)
                     .padding(.bottom, 16)
                 }
                 .frame(maxHeight: contentMaxHeight)
@@ -137,7 +133,7 @@ struct MenuContentView: View {
                 AppLog.notifications.info("Alert permission request result: \(granted ? "granted" : "denied")")
             }
 
-            // Show header and tabs immediately
+            // Show the popover content immediately
             withAnimation(.easeOut(duration: 0.6)) {
                 animateIn = true
             }
@@ -221,72 +217,7 @@ struct MenuContentView: View {
         }
     }
 
-    // MARK: - Header
-
-    private var headerView: some View {
-        HStack(spacing: 12) {
-            // Custom Provider Icon - shows AppLogo in overview mode, provider icon otherwise
-            // Avoid animation on provider icon to prevent constraint update loops in MenuBarExtra
-            ZStack {
-                if settings.overviewModeEnabled, let logo = NSImage(named: "AppLogo") {
-                    Image(nsImage: logo)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: 38, height: 38)
-                        .clipShape(Circle())
-                        .overlay(
-                            Circle()
-                                .stroke(theme.accentPrimary.opacity(0.3), lineWidth: 2)
-                        )
-                        .shadow(color: theme.accentPrimary.opacity(0.15), radius: 3, y: 1)
-                } else {
-                    ProviderIconView(providerId: selectedProviderId, size: 38)
-                }
-
-                // Christmas star sparkle overlay
-                if theme.id == "christmas" {
-                    Image(systemName: "sparkle")
-                        .font(.system(size: 10))
-                        .foregroundStyle(theme.accentPrimary)
-                        .offset(x: 14, y: -14)
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 4) {
-                    Text("ClaudeBar")
-                        .font(.system(size: 18, weight: .bold, design: theme.fontDesign))
-                        .foregroundStyle(theme.textPrimary)
-
-                    // Christmas gift icon
-                    if theme.id == "christmas" {
-                        Image(systemName: "gift.fill")
-                            .font(.system(size: 12))
-                            .foregroundStyle(theme.accentPrimary)
-                    }
-                }
-
-                Text(headerSubtitle)
-                    .font(.system(size: 11, weight: .medium, design: theme.fontDesign))
-                    .foregroundStyle(theme.id == "cli" ? theme.accentPrimary : theme.textSecondary)
-            }
-
-            Spacer()
-
-            // Status Badge
-            statusBadge
-        }
-        .opacity(animateIn ? 1 : 0)
-        .offset(y: animateIn ? 0 : -10)
-    }
-
-    private var headerSubtitle: String {
-        switch theme.id {
-        case "cli": return "> usage monitor"
-        case "christmas": return "Happy Holidays!"
-        default: return "AI Usage Monitor"
-        }
-    }
+    // MARK: - Status Badge
 
     /// Status of the currently selected provider
     private var selectedProviderStatus: QuotaStatus {
@@ -904,12 +835,13 @@ struct MenuContentView: View {
     // MARK: - Action Bar
 
     private var actionBar: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 4) {
             // Dashboard Button
             WrappedActionButton(
                 icon: "safari.fill",
                 label: "Dashboard",
-                gradient: theme.accentGradient
+                gradient: theme.accentGradient,
+                horizontalPadding: 4
             ) {
                 if let url = selectedProvider?.dashboardURL {
                     NSWorkspace.shared.open(url)
@@ -925,7 +857,8 @@ struct MenuContentView: View {
                 icon: isCurrentlyRefreshing ? "arrow.trianglehead.2.counterclockwise.rotate.90" : "arrow.clockwise",
                 label: isCurrentlyRefreshing ? "Syncing" : "Refresh",
                 gradient: theme.accentGradient,
-                isLoading: isCurrentlyRefreshing
+                isLoading: isCurrentlyRefreshing,
+                horizontalPadding: 4
             ) {
                 if settings.overviewModeEnabled {
                     Task { await refreshAllEnabled() }
@@ -935,7 +868,7 @@ struct MenuContentView: View {
             }
             .keyboardShortcut("r")
 
-            Spacer()
+            Spacer(minLength: 0)
 
             // Share Button (Claude only) - icon only
             if let claudeProvider = selectedProvider as? ClaudeProvider,
@@ -1011,6 +944,10 @@ struct MenuContentView: View {
             .buttonStyle(.plain)
             .help("Quit ClaudeBar")
             .keyboardShortcut("q")
+
+            // Status is the final item at the far right.
+            statusBadge
+                .fixedSize(horizontal: true, vertical: false)
         }
         .opacity(animateIn ? 1 : 0)
         .animation(.easeOut(duration: 0.5).delay(0.3), value: animateIn)
@@ -1467,6 +1404,7 @@ struct WrappedActionButton: View {
     let label: String
     let gradient: LinearGradient
     var isLoading: Bool = false
+    var horizontalPadding: CGFloat = 14
     let action: () -> Void
 
     @Environment(\.appTheme) private var theme
@@ -1490,7 +1428,7 @@ struct WrappedActionButton: View {
                     .fixedSize()
             }
             .foregroundStyle(isHovering ? .white : theme.textPrimary)
-            .padding(.horizontal, 14)
+            .padding(.horizontal, horizontalPadding)
             .padding(.vertical, 8)
             .background(
                 ZStack {
