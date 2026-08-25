@@ -16,6 +16,9 @@ public protocol AppSettingsRepository: Sendable {
     func userHasChosenTheme() -> Bool
     func setUserHasChosenTheme(_ chosen: Bool)
 
+    func frostedBackgroundEnabled() -> Bool
+    func setFrostedBackgroundEnabled(_ enabled: Bool)
+
     // MARK: - Display
 
     func usageDisplayMode() -> String

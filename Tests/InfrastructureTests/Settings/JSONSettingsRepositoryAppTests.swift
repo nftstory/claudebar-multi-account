@@ -56,6 +56,29 @@ struct JSONSettingsRepositoryAppTests {
         #expect(repo.userHasChosenTheme() == true)
     }
 
+    @Test
+    func `frostedBackgroundEnabled defaults to true`() {
+        let (repo, dir) = makeRepository()
+        defer { cleanup(dir) }
+
+        #expect(repo.frostedBackgroundEnabled() == true)
+    }
+
+    @Test
+    func `setFrostedBackgroundEnabled round trips`() {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("claudebar-test-\(UUID().uuidString)")
+        let fileURL = tempDir.appendingPathComponent("settings.json")
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let store = JSONSettingsStore(fileURL: fileURL)
+        let repo1 = JSONSettingsRepository(store: store)
+        repo1.setFrostedBackgroundEnabled(false)
+
+        let repo2 = JSONSettingsRepository(store: store)
+        #expect(repo2.frostedBackgroundEnabled() == false)
+    }
+
     // MARK: - Display
 
     @Test

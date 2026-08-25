@@ -41,16 +41,29 @@ struct MenuContentView: View {
 
     var body: some View {
         ZStack {
-            // Gradient background from theme
-            theme.backgroundGradient
+            if settings.frostedBackgroundEnabled {
+                VisualEffectBlur(
+                    material: .hudWindow,
+                    blendingMode: .behindWindow,
+                    state: .active
+                )
                 .ignoresSafeArea()
 
-            // Background orbs (if theme supports them)
-            if theme.showBackgroundOrbs {
-                if theme.id == "christmas" {
-                    ChristmasBackgroundOrbs()
-                } else {
-                    backgroundOrbs
+                theme.backgroundGradient
+                    .opacity(0.18)
+                    .ignoresSafeArea()
+            } else {
+                // Gradient background from theme
+                theme.backgroundGradient
+                    .ignoresSafeArea()
+
+                // Background orbs (if theme supports them)
+                if theme.showBackgroundOrbs {
+                    if theme.id == "christmas" {
+                        ChristmasBackgroundOrbs()
+                    } else {
+                        backgroundOrbs
+                    }
                 }
             }
 
@@ -1316,6 +1329,7 @@ struct WrappedStatCard: View {
             ZStack {
                 RoundedRectangle(cornerRadius: theme.cardCornerRadius)
                     .fill(theme.cardGradient)
+                    .frostedCardSurface()
 
                 RoundedRectangle(cornerRadius: theme.cardCornerRadius)
                     .stroke(theme.glassBorder, lineWidth: 1)
@@ -1452,18 +1466,20 @@ struct WrappedActionButton: View {
 struct VisualEffectBlur: NSViewRepresentable {
     let material: NSVisualEffectView.Material
     let blendingMode: NSVisualEffectView.BlendingMode
+    let state: NSVisualEffectView.State
 
     func makeNSView(context: Context) -> NSVisualEffectView {
         let view = NSVisualEffectView()
         view.material = material
         view.blendingMode = blendingMode
-        view.state = .active
+        view.state = state
         return view
     }
 
     func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
         nsView.material = material
         nsView.blendingMode = blendingMode
+        nsView.state = state
     }
 }
 
@@ -1778,6 +1794,7 @@ struct BedrockUsageCard: View {
             ZStack {
                 RoundedRectangle(cornerRadius: theme.cardCornerRadius)
                     .fill(theme.cardGradient)
+                    .frostedCardSurface()
 
                 RoundedRectangle(cornerRadius: theme.cardCornerRadius)
                     .stroke(theme.glassBorder, lineWidth: 1)

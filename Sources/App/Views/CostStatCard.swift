@@ -134,6 +134,7 @@ struct CostStatCard: View {
             ZStack {
                 RoundedRectangle(cornerRadius: theme.cardCornerRadius)
                     .fill(theme.cardGradient)
+                    .frostedCardSurface()
 
                 // Light mode shadow
                 if colorScheme == .light {

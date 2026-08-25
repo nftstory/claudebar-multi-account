@@ -33,6 +33,13 @@ public final class AppSettings {
         }
     }
 
+    /// Whether the menu popover uses the native frosted-glass background.
+    public var frostedBackgroundEnabled: Bool {
+        didSet {
+            repository.setFrostedBackgroundEnabled(frostedBackgroundEnabled)
+        }
+    }
+
     // MARK: - Display Settings
 
     /// Whether to show quota as remaining, used, or pace-aware.
@@ -233,6 +240,7 @@ public final class AppSettings {
         // Load all values from repository
         self.themeMode = repository.themeMode()
         self.userHasChosenTheme = repository.userHasChosenTheme()
+        self.frostedBackgroundEnabled = repository.frostedBackgroundEnabled()
         self.claudeApiBudgetEnabled = repository.claudeApiBudgetEnabled()
         self.claudeApiBudget = Decimal(repository.claudeApiBudget())
         self.receiveBetaUpdates = repository.receiveBetaUpdates()

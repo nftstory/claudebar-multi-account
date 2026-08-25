@@ -69,6 +69,7 @@ struct SessionIndicatorView: View {
             ZStack {
                 RoundedRectangle(cornerRadius: theme.cardCornerRadius)
                     .fill(theme.cardGradient)
+                    .frostedCardSurface()
 
                 RoundedRectangle(cornerRadius: theme.cardCornerRadius)
                     .stroke(phaseColor.opacity(0.3), lineWidth: 1)

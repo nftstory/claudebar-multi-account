@@ -47,6 +47,7 @@ struct CustomWebCardView: View {
             ZStack {
                 RoundedRectangle(cornerRadius: theme.cardCornerRadius)
                     .fill(theme.cardGradient)
+                    .frostedCardSurface()
 
                 RoundedRectangle(cornerRadius: theme.cardCornerRadius)
                     .stroke(theme.glassBorder, lineWidth: 1)

@@ -36,6 +36,12 @@ struct AppearancePane: View {
                 ThemeImportButton()
                     .frame(maxWidth: .infinity)
                     .padding(.top, 12)
+
+                SettingsRowDivider()
+
+                SettingsRow(title: "Frosted glass background") {
+                    SettingsSwitch(isOn: $settings.frostedBackgroundEnabled)
+                }
             }
         }
     }

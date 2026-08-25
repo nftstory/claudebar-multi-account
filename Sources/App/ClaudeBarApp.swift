@@ -289,6 +289,9 @@ struct ClaudeBarApp: App {
             // re-assert the menu-bar pixels on both edges.
             .onAppear { statusItemDriver.reassertPresentation() }
             .onDisappear { statusItemDriver.reassertPresentation() }
+            .introspectMenuBarExtraWindow { window in
+                Self.configurePopoverHostingWindow(window)
+            }
         } label: {
             // Deliberately static: the menu-bar pixels are drawn by
             // StatusItemLabelDriver into the status item's button image,
@@ -325,6 +328,15 @@ struct ClaudeBarApp: App {
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 980, height: 660)
         .windowResizability(.contentMinSize)
+    }
+
+    private static func configurePopoverHostingWindow(_ window: NSWindow) {
+        window.isOpaque = false
+        window.backgroundColor = .clear
+
+        let hostingView = window.contentViewController?.view ?? window.contentView
+        hostingView?.wantsLayer = true
+        hostingView?.layer?.backgroundColor = NSColor.clear.cgColor
     }
 
 }

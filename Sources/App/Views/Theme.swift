@@ -412,6 +412,7 @@ struct AdaptiveGlassCardStyle: ViewModifier {
                     // Base glass layer
                     RoundedRectangle(cornerRadius: cornerRadius)
                         .fill(AppTheme.cardGradient(for: colorScheme))
+                        .frostedCardSurface()
 
                     // Shadow for light mode depth
                     if colorScheme == .light {
@@ -445,6 +446,20 @@ struct AdaptiveGlassCardStyle: ViewModifier {
                         )
                 }
             )
+    }
+}
+
+struct FrostedCardSurfaceModifier: ViewModifier {
+    @State private var settings = AppSettings.shared
+
+    func body(content: Content) -> some View {
+        content.opacity(settings.frostedBackgroundEnabled ? 0.55 : 1)
+    }
+}
+
+extension View {
+    func frostedCardSurface() -> some View {
+        modifier(FrostedCardSurfaceModifier())
     }
 }
 
@@ -974,6 +989,5 @@ extension View {
         modifier(ThemeProvider(themeMode: mode))
     }
 }
-
 
 

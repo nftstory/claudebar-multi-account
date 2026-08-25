@@ -66,6 +66,14 @@ public final class JSONSettingsRepository:
         store.write(value: chosen, key: "app.userHasChosenTheme")
     }
 
+    public func frostedBackgroundEnabled() -> Bool {
+        store.read(key: "app.frostedBackgroundEnabled") ?? true
+    }
+
+    public func setFrostedBackgroundEnabled(_ enabled: Bool) {
+        store.write(value: enabled, key: "app.frostedBackgroundEnabled")
+    }
+
     public func usageDisplayMode() -> String {
         store.read(key: "app.usageDisplayMode") ?? "remaining"
     }
