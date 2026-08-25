@@ -70,7 +70,9 @@ final class StatusItemLabelDriver {
     /// inside the sync's `read` registers observation for each of them.
     struct LabelContent: Equatable {
         var label: MenuBarLabel?
-        var fallbackStatus: QuotaStatus
+        /// Core-window status to tint in icon-only mode. `nil` means the
+        /// fallback icon should use standard macOS template rendering.
+        var fallbackTintStatus: QuotaStatus?
         var sessionPhase: ClaudeSession.Phase?
         var themeModeId: String
         /// Whether a dual-window label should render as two stacked smaller
@@ -176,7 +178,7 @@ final class StatusItemLabelDriver {
 
         return LabelContent(
             label: label,
-            fallbackStatus: effectiveSelectedProviderStatus,
+            fallbackTintStatus: StatusItemTint.tintStatus(snapshot: monitor.selectedProvider?.snapshot),
             sessionPhase: sessionMonitor.activeSession?.phase,
             themeModeId: settings.themeMode,
             stacked: settings.menuBarStackedEnabled,
@@ -197,16 +199,6 @@ final class StatusItemLabelDriver {
             $0.id == settings.menuBarPercentageProviderId && $0.snapshot != nil
         }
         return providerHasSnapshot ? previous : nil
-    }
-
-    /// Status of the selected provider, considering the burn-rate setting.
-    /// Mirrors the dropdown's status logic for the icon-only fallback.
-    private var effectiveSelectedProviderStatus: QuotaStatus {
-        guard let snapshot = monitor.selectedProvider?.snapshot else { return .healthy }
-        if settings.burnRateWarningEnabled {
-            return snapshot.paceAwareOverallStatus(burnRateThreshold: settings.burnRateThreshold)
-        }
-        return snapshot.overallStatus
     }
 
     private func render(_ content: LabelContent) {
@@ -275,22 +267,28 @@ final class StatusItemLabelDriver {
                 ))
             }
         } else {
-            let symbolName = theme.statusBarIconName ?? fallbackIconName(for: content.fallbackStatus)
-            parts.append(symbolImage(
-                symbolName,
-                color: NSColor(theme.statusColor(for: content.fallbackStatus))
-            ))
+            let symbolName = theme.statusBarIconName ?? "chart.bar.fill"
+            if let tintStatus = content.fallbackTintStatus {
+                parts.append(symbolImage(
+                    symbolName,
+                    color: NSColor(theme.statusColor(for: tintStatus))
+                ))
+            } else {
+                parts.append(templateSymbolImage(symbolName))
+            }
         }
 
-        return hStack(parts, spacing: 3)
+        return hStack(parts, spacing: 3, isTemplate: content.label == nil && content.fallbackTintStatus == nil)
     }
 
-    private static func fallbackIconName(for status: QuotaStatus) -> String {
-        switch status {
-        case .depleted: "chart.bar.xaxis"
-        case .critical: "exclamationmark.triangle.fill"
-        case .warning, .healthy: "chart.bar.fill"
+    private static func templateSymbolImage(_ name: String) -> NSImage {
+        let configuration = NSImage.SymbolConfiguration(pointSize: 12, weight: .semibold)
+        guard let symbol = NSImage(systemSymbolName: name, accessibilityDescription: name)?
+            .withSymbolConfiguration(configuration) else {
+            return NSImage(size: .zero)
         }
+        symbol.isTemplate = true
+        return symbol
     }
 
     /// Renders an SF Symbol tinted with a fixed color, since the status item
@@ -313,7 +311,7 @@ final class StatusItemLabelDriver {
     }
 
     /// Composites images horizontally, vertically centered.
-    private static func hStack(_ images: [NSImage], spacing: CGFloat) -> NSImage {
+    private static func hStack(_ images: [NSImage], spacing: CGFloat, isTemplate: Bool = false) -> NSImage {
         let images = images.filter { $0.size.width > 0 }
         guard !images.isEmpty else { return NSImage(size: .zero) }
 
@@ -327,7 +325,7 @@ final class StatusItemLabelDriver {
             }
             return true
         }
-        composed.isTemplate = false
+        composed.isTemplate = isTemplate
         return composed
     }
 
