@@ -7,20 +7,22 @@ import Domain
 /// 1. The local language server of the running Antigravity app or `agy` CLI (loopback API).
 /// 2. With nothing running, the OAuth access token Antigravity / `agy` stored in the Keychain,
 ///    used against Google's Cloud Code API — so the desktop app need not stay open (#201).
-///    The token is not refreshed here; once it expires the user is asked to sign in again.
+///    Expired tokens are refreshed in memory without modifying Antigravity's Keychain item.
 public struct AntigravityUsageProbe: UsageProbe {
 
-    private let cliExecutor: any CLIExecutor
+    private let commandRunner: any SimpleCommandRunning
     private let networkClient: any NetworkClient
     private let cloudClient: AntigravityCloudCodeClient
     private let credentialLoader: AntigravityKeychainCredentialLoader
+    private let tokenCache = AntigravityAccessTokenCache()
     private let timeout: TimeInterval
     private let now: @Sendable () -> Date
 
     // Match the app's language server (current and older names) and the `agy` CLI.
     private static let processNames = ["language_server", "language_server_macos", "language_server_macos_arm", "agy"]
 
-    static let sessionExpiredHint = "Sign in to Antigravity or run `agy` again."
+    static let sessionExpiredHint = "Open Antigravity to sign in again"
+    static let missingCredentialsError = "Open Antigravity once to sign in"
 
     public init(
         cliExecutor: (any CLIExecutor)? = nil,
@@ -29,13 +31,15 @@ public struct AntigravityUsageProbe: UsageProbe {
         timeout: TimeInterval = 8.0,
         now: @escaping @Sendable () -> Date = Date.init
     ) {
-        let executor = cliExecutor ?? DefaultCLIExecutor()
-        self.cliExecutor = executor
+        let runner: any SimpleCommandRunning = cliExecutor.map {
+            CLIExecutorCommandRunner(executor: $0)
+        } ?? SimpleCommandRunner()
+        self.commandRunner = runner
         // Use insecure client by default for self-signed localhost certificates
         self.networkClient = networkClient ?? InsecureLocalhostNetworkClient(timeout: timeout)
         // Remote calls use full TLS validation
         self.cloudClient = AntigravityCloudCodeClient(networkClient: remoteNetworkClient ?? URLSession.shared)
-        self.credentialLoader = AntigravityKeychainCredentialLoader(cliExecutor: executor, timeout: timeout)
+        self.credentialLoader = AntigravityKeychainCredentialLoader(commandRunner: runner, timeout: timeout)
         self.timeout = timeout
         self.now = now
     }
@@ -121,14 +125,17 @@ public struct AntigravityUsageProbe: UsageProbe {
     // MARK: - Cloud Code Fallback (app closed)
 
     private func probeCloudCode() async throws -> UsageSnapshot {
-        guard let credentials = credentialLoader.load() else {
-            AppLog.probes.error("Antigravity probe failed: not running and no stored credentials")
-            throw ProbeError.cliNotFound("Antigravity")
-        }
-
-        guard credentials.hasUsableAccessToken(at: now()), let token = credentials.accessToken else {
-            AppLog.probes.error("Antigravity: stored access token is expired; run Antigravity or agy to refresh it")
-            throw ProbeError.sessionExpired(hint: Self.sessionExpiredHint)
+        var credentials: AntigravityOAuthCredentials?
+        let token: String
+        if let cached = await tokenCache.usableToken(at: now()) {
+            token = cached
+        } else {
+            guard let stored = credentialLoader.load() else {
+                AppLog.probes.error("Antigravity probe failed: not running and no stored credentials")
+                throw ProbeError.executionFailed(Self.missingCredentialsError)
+            }
+            credentials = stored
+            token = try await accessToken(from: stored)
         }
 
         switch await fetchCloudQuota(token: token) {
@@ -136,11 +143,48 @@ public struct AntigravityUsageProbe: UsageProbe {
             logSuccess(snapshot)
             return snapshot
         case .authFailed:
-            AppLog.probes.error("Antigravity: Cloud Code rejected the stored access token")
-            throw ProbeError.sessionExpired(hint: Self.sessionExpiredHint)
+            AppLog.probes.info("Antigravity: Cloud Code rejected the access token; refreshing once")
+            await tokenCache.clear()
+            if credentials == nil {
+                credentials = credentialLoader.load()
+            }
+            guard let stored = credentials else {
+                throw ProbeError.sessionExpired(hint: Self.sessionExpiredHint)
+            }
+            let refreshed = try await refreshToken(from: stored)
+            switch await fetchCloudQuota(token: refreshed) {
+            case .snapshot(let snapshot):
+                logSuccess(snapshot)
+                return snapshot
+            case .authFailed:
+                throw ProbeError.sessionExpired(hint: Self.sessionExpiredHint)
+            case .unavailable:
+                throw ProbeError.executionFailed("Could not reach the Antigravity quota API")
+            }
         case .unavailable:
             AppLog.probes.error("Antigravity: Cloud Code quota endpoints unavailable")
             throw ProbeError.executionFailed("Could not reach the Antigravity quota API")
+        }
+    }
+
+    private func accessToken(from credentials: AntigravityOAuthCredentials) async throws -> String {
+        if credentials.hasUsableAccessToken(at: now()), let accessToken = credentials.accessToken {
+            await tokenCache.store(accessToken, expiresAt: credentials.expiresAt ?? .distantFuture)
+            return accessToken
+        }
+        return try await refreshToken(from: credentials)
+    }
+
+    private func refreshToken(from credentials: AntigravityOAuthCredentials) async throws -> String {
+        guard let refreshToken = credentials.refreshToken else {
+            throw ProbeError.sessionExpired(hint: Self.sessionExpiredHint)
+        }
+        switch await cloudClient.refreshAccessToken(refreshToken: refreshToken, now: now()) {
+        case .refreshed(let accessToken, let expiresAt):
+            await tokenCache.store(accessToken, expiresAt: expiresAt)
+            return accessToken
+        case .failed:
+            throw ProbeError.sessionExpired(hint: Self.sessionExpiredHint)
         }
     }
 
@@ -157,12 +201,7 @@ public struct AntigravityUsageProbe: UsageProbe {
             return .authFailed
         case .ok(let data):
             if let quotas = AntigravityQuotaSummaryParser.parse(data, providerId: "antigravity"), !quotas.isEmpty {
-                return .snapshot(UsageSnapshot(
-                    providerId: "antigravity",
-                    quotas: quotas,
-                    capturedAt: now(),
-                    accountTier: await loadPlan(token: token)
-                ))
+                return await snapshot(quotas: quotas, token: token)
             }
         case .unavailable:
             break
@@ -175,12 +214,7 @@ public struct AntigravityUsageProbe: UsageProbe {
         case .ok(let data):
             let quotas = Self.parseAvailableModels(data, providerId: "antigravity")
             if !quotas.isEmpty {
-                return .snapshot(UsageSnapshot(
-                    providerId: "antigravity",
-                    quotas: quotas,
-                    capturedAt: now(),
-                    accountTier: await loadPlan(token: token)
-                ))
+                return await snapshot(quotas: quotas, token: token)
             }
         case .unavailable:
             break
@@ -188,31 +222,62 @@ public struct AntigravityUsageProbe: UsageProbe {
         return .unavailable
     }
 
-    private func loadPlan(token: String) async -> AccountTier? {
-        guard case .ok(let data) = await cloudClient.post(path: AntigravityCloudCodeClient.loadCodeAssistPath, token: token) else {
-            return nil
+    private func snapshot(quotas: [UsageQuota], token: String) async -> CloudQuotaResult {
+        switch await loadPlan(token: token) {
+        case .tier(let tier):
+            return .snapshot(UsageSnapshot(
+                providerId: "antigravity",
+                quotas: quotas,
+                capturedAt: now(),
+                accountTier: tier
+            ))
+        case .authFailed:
+            return .authFailed
         }
-        return Self.parsePlanName(data).map { .custom($0.uppercased()) }
+    }
+
+    private enum PlanResult {
+        case tier(AccountTier?)
+        case authFailed
+    }
+
+    private func loadPlan(token: String) async -> PlanResult {
+        switch await cloudClient.post(path: AntigravityCloudCodeClient.loadCodeAssistPath, token: token) {
+        case .ok(let data):
+            return .tier(Self.parsePlanName(data).map { .custom($0.uppercased()) })
+        case .authFailed:
+            return .authFailed
+        case .unavailable:
+            return .tier(nil)
+        }
     }
 
     // MARK: - Process Detection
 
-    private struct ProcessInfo {
+    struct ProcessInfo {
         let pid: Int
         let csrfToken: String
         let extensionPort: Int?
     }
 
-    private func detectProcess() async throws -> ProcessInfo {
+    func detectProcess() async throws -> ProcessInfo {
         // Use pgrep for more reliable process detection (avoids PTY buffering issues)
-        let result = try cliExecutor.execute(
-            binary: "/usr/bin/pgrep",
-            args: ["-lf", "language_server"],
-            input: nil,
-            timeout: timeout,
-            workingDirectory: nil,
-            autoResponses: [:]
-        )
+        let result: CLIResult
+        do {
+            result = try commandRunner.run(
+                "/usr/bin/pgrep",
+                ["-lf", "language_server"],
+                timeout: timeout
+            )
+        } catch {
+            AppLog.probes.error("Antigravity: process detection failed; trying Cloud Code fallback: \(error.localizedDescription)")
+            throw ProbeError.cliNotFound("Antigravity")
+        }
+
+        guard result.exitCode == 0 else {
+            AppLog.probes.debug("Antigravity: pgrep exited \(result.exitCode); treating the app as not running")
+            throw ProbeError.cliNotFound("Antigravity")
+        }
 
         // Handle different line endings
         let normalizedOutput = result.output
@@ -252,13 +317,10 @@ public struct AntigravityUsageProbe: UsageProbe {
             FileManager.default.isExecutableFile(atPath: $0)
         } ?? "/usr/sbin/lsof"
 
-        let result = try cliExecutor.execute(
-            binary: lsofPath,
-            args: ["-nP", "-iTCP", "-sTCP:LISTEN", "-a", "-p", String(pid)],
-            input: nil,
-            timeout: timeout,
-            workingDirectory: nil,
-            autoResponses: [:]
+        let result = try commandRunner.run(
+            lsofPath,
+            ["-nP", "-iTCP", "-sTCP:LISTEN", "-a", "-p", String(pid)],
+            timeout: timeout
         )
 
         let ports = Self.parseListeningPorts(from: result.output)
@@ -499,7 +561,7 @@ public struct AntigravityUsageProbe: UsageProbe {
 
     // MARK: - Cloud Code Parsing (Static for testability)
 
-    /// Parses Cloud Code `fetchAvailableModels` into per-model quotas (internal models dropped).
+    /// Parses Cloud Code `fetchAvailableModels` into one quota per model with `quotaInfo`.
     static func parseAvailableModels(_ data: Data, providerId: String) -> [UsageQuota] {
         guard let response = try? JSONDecoder().decode(AvailableModelsResponse.self, from: data),
               let models = response.models else {
@@ -508,7 +570,6 @@ public struct AntigravityUsageProbe: UsageProbe {
         return models
             .sorted { $0.key < $1.key }
             .compactMap { key, model -> UsageQuota? in
-                if model.isInternal == true { return nil }
                 guard let quotaInfo = model.quotaInfo else { return nil }
                 let label = [model.displayName, model.label, key]
                     .compactMap { $0?.trimmingCharacters(in: .whitespaces) }
@@ -525,7 +586,7 @@ public struct AntigravityUsageProbe: UsageProbe {
     /// Parses Cloud Code `loadCodeAssist` for the subscription tier name.
     static func parsePlanName(_ data: Data) -> String? {
         guard let response = try? JSONDecoder().decode(LoadCodeAssistResponse.self, from: data) else { return nil }
-        let name = (response.paidTier?.name ?? response.currentTier?.name)?.trimmingCharacters(in: .whitespaces)
+        let name = (response.currentTier?.name ?? response.paidTier?.name)?.trimmingCharacters(in: .whitespaces)
         guard let name, !name.isEmpty else { return nil }
         return name
     }
@@ -607,5 +668,31 @@ private struct LoadCodeAssistResponse: Decodable {
 
     struct Tier: Decodable {
         let name: String?
+    }
+}
+
+private actor AntigravityAccessTokenCache {
+    private struct Entry {
+        let accessToken: String
+        let expiresAt: Date
+    }
+
+    private var entry: Entry?
+
+    func usableToken(at now: Date) -> String? {
+        guard let entry,
+              entry.expiresAt.timeIntervalSince(now) > AntigravityOAuthCredentials.refreshBuffer else {
+            self.entry = nil
+            return nil
+        }
+        return entry.accessToken
+    }
+
+    func store(_ accessToken: String, expiresAt: Date) {
+        entry = Entry(accessToken: accessToken, expiresAt: expiresAt)
+    }
+
+    func clear() {
+        entry = nil
     }
 }

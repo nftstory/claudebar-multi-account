@@ -33,10 +33,16 @@ struct AntigravityCloudCodeFallbackTests {
 
     static let modelsJSON = """
     {"models":{
-      "gemini-3-pro":{"displayName":"Gemini 3 Pro","quotaInfo":{"remainingFraction":0.65}},
+      "gemini-3-pro":{"displayName":"Gemini 3 Pro","quotaInfo":{"remainingFraction":0.65,"resetTime":"2026-09-01T00:00:00Z"}},
+      "gemini-3-flash":{"displayName":"Gemini 3 Flash","quotaInfo":{"resetTime":"2026-09-02T00:00:00Z"}},
       "claude-sonnet":{"displayName":"Claude Sonnet","quotaInfo":{"remainingFraction":0.25}},
-      "internal":{"displayName":"Hidden","isInternal":true,"quotaInfo":{"remainingFraction":1.0}}
+      "internal":{"displayName":"Hidden","isInternal":true,"quotaInfo":{"remainingFraction":1.0}},
+      "no-quota":{"displayName":"No Quota"}
     }}
+    """
+
+    static let planJSON = """
+    {"paidTier":{"name":"paid-tier"},"currentTier":{"name":"free-tier"}}
     """
 
     // MARK: - Helpers
@@ -118,13 +124,19 @@ struct AntigravityCloudCodeFallbackTests {
     }
 
     @Test
-    func `probe falls back to fetchAvailableModels when summary endpoint is missing`() async throws {
+    func `probe falls back to every model quota and current tier when summary returns 403`() async throws {
         let executor = makeExecutor(process: Self.noProcessOutput, keychain: CLIResult(output: Self.keychainBlob(), exitCode: 0))
         let remote = MockNetworkClient()
         given(remote).request(.any).willProduce { request in
             let url = request.url!
+            if url.path.hasSuffix("retrieveUserQuotaSummary") {
+                return self.http(403, "no valid license", url: url)
+            }
             if url.path.hasSuffix("fetchAvailableModels") {
                 return self.http(200, Self.modelsJSON, url: url)
+            }
+            if url.path.hasSuffix("loadCodeAssist") {
+                return self.http(200, Self.planJSON, url: url)
             }
             return self.http(404, "", url: url)
         }
@@ -132,33 +144,145 @@ struct AntigravityCloudCodeFallbackTests {
         let probe = AntigravityUsageProbe(cliExecutor: executor, remoteNetworkClient: remote)
         let snapshot = try await probe.probe()
 
-        #expect(snapshot.quotas.count == 2)
+        #expect(snapshot.quotas.count == 4)
         #expect(snapshot.quotas.contains { $0.quotaType == .modelSpecific("Gemini 3 Pro") && $0.percentRemaining == 65.0 })
         #expect(snapshot.quotas.contains { $0.quotaType == .modelSpecific("Claude Sonnet") && $0.percentRemaining == 25.0 })
+        #expect(snapshot.quotas.contains { $0.quotaType == .modelSpecific("Gemini 3 Flash") && $0.percentRemaining == 0.0 })
+        #expect(snapshot.quotas.contains { $0.quotaType == .modelSpecific("Hidden") && $0.percentRemaining == 100.0 })
+        #expect(snapshot.quotas.first { $0.quotaType == .modelSpecific("Gemini 3 Pro") }?.resetsAt == ISO8601DateFormatter().date(from: "2026-09-01T00:00:00Z"))
+        #expect(snapshot.quotas.allSatisfy { $0.resetText == nil })
+        #expect(snapshot.accountTier == .custom("FREE-TIER"))
+    }
+
+    // MARK: - Token refresh
+
+    @Test
+    func `expired token is refreshed and cached in the probe instance`() async throws {
+        let executor = makeExecutor(
+            process: Self.noProcessOutput,
+            keychain: CLIResult(output: Self.keychainBlob(access: "ya29.stale", expiry: "2020-01-01T00:00:00Z"), exitCode: 0)
+        )
+        let remote = MockNetworkClient()
+        var refreshRequests = 0
+        var quotaAuthHeaders: [String] = []
+        given(remote).request(.any).willProduce { request in
+            let url = request.url!
+            if url == AntigravityCloudCodeClient.tokenURL {
+                refreshRequests += 1
+                let form = URLComponents(string: "?" + String(data: request.httpBody ?? Data(), encoding: .utf8)!)!
+                let values = Dictionary(uniqueKeysWithValues: (form.queryItems ?? []).map { ($0.name, $0.value ?? "") })
+                #expect(values["grant_type"] == "refresh_token")
+                #expect(values["refresh_token"] == "1//refresh")
+                #expect(values["client_id"] == AntigravityCloudCodeClient.clientID)
+                #expect(values["client_secret"] == AntigravityCloudCodeClient.clientSecret)
+                return self.http(200, "{\"access_token\":\"ya29.refreshed\",\"expires_in\":3600}", url: url)
+            }
+            quotaAuthHeaders.append(request.value(forHTTPHeaderField: "Authorization") ?? "")
+            if url.path.hasSuffix("retrieveUserQuotaSummary") {
+                return self.http(200, Self.summaryJSON, url: url)
+            }
+            return self.http(404, "", url: url)
+        }
+
+        let probe = AntigravityUsageProbe(
+            cliExecutor: executor,
+            remoteNetworkClient: remote,
+            now: { Date(timeIntervalSince1970: 1_800_000_000) }
+        )
+
+        _ = try await probe.probe()
+        _ = try await probe.probe()
+
+        #expect(refreshRequests == 1)
+        #expect(quotaAuthHeaders.allSatisfy { $0 == "Bearer ya29.refreshed" })
+    }
+
+    @Test
+    func `HTTP 401 refreshes once and retries with the new token`() async throws {
+        let executor = makeExecutor(process: Self.noProcessOutput, keychain: CLIResult(output: Self.keychainBlob(), exitCode: 0))
+        let remote = MockNetworkClient()
+        var refreshRequests = 0
+        given(remote).request(.any).willProduce { request in
+            let url = request.url!
+            if url == AntigravityCloudCodeClient.tokenURL {
+                refreshRequests += 1
+                return self.http(200, "{\"access_token\":\"ya29.after401\",\"expires_in\":3600}", url: url)
+            }
+            if url.path.hasSuffix("retrieveUserQuotaSummary") {
+                let authorization = request.value(forHTTPHeaderField: "Authorization")
+                return authorization == "Bearer ya29.valid"
+                    ? self.http(401, "", url: url)
+                    : self.http(200, Self.summaryJSON, url: url)
+            }
+            return self.http(404, "", url: url)
+        }
+
+        let snapshot = try await AntigravityUsageProbe(
+            cliExecutor: executor,
+            remoteNetworkClient: remote
+        ).probe()
+
+        #expect(snapshot.quotas.count == 4)
+        #expect(refreshRequests == 1)
+    }
+
+    @Test
+    func `detection executor failure falls through to Cloud Code`() async throws {
+        let executor = MockCLIExecutor()
+        given(executor)
+            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any)
+            .willProduce { binary, _, _, _, _, _ in
+                if binary.hasSuffix("pgrep") { throw ProbeError.timeout }
+                if binary.hasSuffix("security") {
+                    return CLIResult(output: Self.keychainBlob(), exitCode: 0)
+                }
+                return CLIResult(output: "", exitCode: 1)
+            }
+        let remote = MockNetworkClient()
+        given(remote).request(.any).willProduce { request in
+            let url = request.url!
+            if url.path.hasSuffix("retrieveUserQuotaSummary") {
+                return self.http(200, Self.summaryJSON, url: url)
+            }
+            return self.http(404, "", url: url)
+        }
+
+        let snapshot = try await AntigravityUsageProbe(cliExecutor: executor, remoteNetworkClient: remote).probe()
+
+        #expect(snapshot.quotas.count == 4)
     }
 
     // MARK: - Errors
 
     @Test
-    func `probe throws cliNotFound when no process and no credentials`() async {
+    func `probe shows the sign-in instruction when no process and no credentials`() async {
         let executor = makeExecutor(process: Self.noProcessOutput, keychain: CLIResult(output: "not found", exitCode: 44))
         let probe = AntigravityUsageProbe(cliExecutor: executor, remoteNetworkClient: MockNetworkClient())
 
-        await #expect(throws: ProbeError.cliNotFound("Antigravity")) {
+        await #expect(throws: ProbeError.executionFailed("Open Antigravity once to sign in")) {
             try await probe.probe()
         }
     }
 
     @Test
-    func `probe throws sessionExpired when stored access token is expired`() async {
+    func `probe throws sessionExpired with the Antigravity sign-in hint when refresh fails`() async {
         let executor = makeExecutor(
             process: Self.noProcessOutput,
             keychain: CLIResult(output: Self.keychainBlob(access: "ya29.stale", expiry: "2020-01-01T00:00:00Z"), exitCode: 0)
         )
-        let probe = AntigravityUsageProbe(cliExecutor: executor, remoteNetworkClient: MockNetworkClient())
+        let remote = MockNetworkClient()
+        given(remote).request(.any).willProduce { request in
+            self.http(400, "", url: request.url!)
+        }
+        let probe = AntigravityUsageProbe(cliExecutor: executor, remoteNetworkClient: remote)
 
-        await #expect(throws: ProbeError.sessionExpired(hint: "Sign in to Antigravity or run `agy` again.")) {
-            try await probe.probe()
+        do {
+            _ = try await probe.probe()
+            Issue.record("Expected sessionExpired")
+        } catch let error as ProbeError {
+            #expect(error.errorDescription == "Session expired. Open Antigravity to sign in again")
+        } catch {
+            Issue.record("Expected ProbeError, got \(error)")
         }
     }
 
@@ -172,7 +296,7 @@ struct AntigravityCloudCodeFallbackTests {
 
         let probe = AntigravityUsageProbe(cliExecutor: executor, remoteNetworkClient: remote)
 
-        await #expect(throws: ProbeError.sessionExpired(hint: "Sign in to Antigravity or run `agy` again.")) {
+        await #expect(throws: ProbeError.sessionExpired(hint: "Open Antigravity to sign in again")) {
             try await probe.probe()
         }
     }

@@ -210,7 +210,21 @@ struct AntigravityUsageProbeTests {
     // MARK: - Probe Error Tests
 
     @Test
-    func `probe throws cliNotFound when no Antigravity process`() async throws {
+    func `detection maps empty pgrep exit one to cliNotFound`() async {
+        let mockExecutor = MockCLIExecutor()
+        given(mockExecutor)
+            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any)
+            .willReturn(CLIResult(output: "", exitCode: 1))
+
+        let probe = AntigravityUsageProbe(cliExecutor: mockExecutor)
+
+        await #expect(throws: ProbeError.cliNotFound("Antigravity")) {
+            try await probe.detectProcess()
+        }
+    }
+
+    @Test
+    func `detection throws cliNotFound when output has no Antigravity process`() async throws {
         // Given
         let mockExecutor = MockCLIExecutor()
         given(mockExecutor)
@@ -221,7 +235,7 @@ struct AntigravityUsageProbeTests {
 
         // When & Then
         await #expect(throws: ProbeError.cliNotFound("Antigravity")) {
-            try await probe.probe()
+            try await probe.detectProcess()
         }
     }
 

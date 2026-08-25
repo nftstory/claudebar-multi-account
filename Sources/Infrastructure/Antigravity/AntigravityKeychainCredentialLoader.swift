@@ -35,11 +35,16 @@ public struct AntigravityKeychainCredentialLoader: Sendable {
     static let keychainAccount = "antigravity"
     private static let goKeyringPrefix = "go-keyring-base64:"
 
-    private let cliExecutor: any CLIExecutor
+    private let commandRunner: any SimpleCommandRunning
     private let timeout: TimeInterval
 
-    public init(cliExecutor: any CLIExecutor = DefaultCLIExecutor(), timeout: TimeInterval = 8.0) {
-        self.cliExecutor = cliExecutor
+    public init(cliExecutor: (any CLIExecutor)? = nil, timeout: TimeInterval = 8.0) {
+        self.commandRunner = cliExecutor.map { CLIExecutorCommandRunner(executor: $0) } ?? SimpleCommandRunner()
+        self.timeout = timeout
+    }
+
+    init(commandRunner: any SimpleCommandRunning, timeout: TimeInterval = 8.0) {
+        self.commandRunner = commandRunner
         self.timeout = timeout
     }
 
@@ -47,13 +52,10 @@ public struct AntigravityKeychainCredentialLoader: Sendable {
     public func load() -> AntigravityOAuthCredentials? {
         let result: CLIResult
         do {
-            result = try cliExecutor.execute(
-                binary: "/usr/bin/security",
-                args: ["find-generic-password", "-s", Self.keychainService, "-a", Self.keychainAccount, "-w"],
-                input: nil,
-                timeout: timeout,
-                workingDirectory: nil,
-                autoResponses: [:]
+            result = try commandRunner.run(
+                "/usr/bin/security",
+                ["find-generic-password", "-s", Self.keychainService, "-a", Self.keychainAccount, "-w"],
+                timeout: timeout
             )
         } catch {
             AppLog.credentials.error("Antigravity: Keychain read failed: \(error.localizedDescription)")
