@@ -892,17 +892,17 @@ struct MenuContentView: View {
                 } label: {
                     ZStack {
                         Circle()
-                            .fill(theme.shareGradient)
+                            .fill(theme.glassBackground)
                             .frame(width: 32, height: 32)
 
                         if isFetchingPasses {
                             ProgressView()
                                 .scaleEffect(0.5)
-                                .tint(.white)
+                                .tint(theme.textSecondary)
                         } else {
                             Image(systemName: "gift.fill")
                                 .font(.system(size: 12, weight: .bold))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(theme.textSecondary)
                         }
                     }
                 }
