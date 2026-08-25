@@ -489,9 +489,9 @@ struct MenuContentView: View {
                 compactQuotaCell(label: "WEEKLY", quota: snapshot.weeklyQuota)
                     .frame(maxWidth: .infinity)
 
-                let extraQuota = compactExtraQuota(snapshot: snapshot)
+                let extraQuota = CompactColumns.specialQuota(in: snapshot, providerId: provider.id)
                 compactQuotaCell(
-                    label: extraQuota.map(compactQuotaLabel) ?? "",
+                    label: extraQuota.map { CompactColumns.label(for: $0) } ?? "",
                     quota: extraQuota
                 )
                 .frame(maxWidth: .infinity)
@@ -504,21 +504,6 @@ struct MenuContentView: View {
             }
         }
         .padding(.vertical, 6)
-    }
-
-    private func compactExtraQuota(snapshot: UsageSnapshot) -> UsageQuota? {
-        snapshot.modelSpecificQuotas.first ?? snapshot.quotas.first { quota in
-            if case .timeLimit = quota.quotaType {
-                return true
-            }
-            return false
-        }
-    }
-
-    private func compactQuotaLabel(_ quota: UsageQuota) -> String {
-        let title = quota.compactTitle ?? quota.quotaType.displayName
-        let firstWord = title.firstIndex(of: " ").map { title[..<$0] } ?? title[...]
-        return firstWord.uppercased()
     }
 
     @ViewBuilder
