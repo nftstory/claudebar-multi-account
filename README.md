@@ -1,68 +1,62 @@
-# ClaudeBar
+# ClaudeBar Multi-Account
 
-[![Build](https://github.com/tddworks/ClaudeBar/actions/workflows/build.yml/badge.svg)](https://github.com/tddworks/ClaudeBar/actions/workflows/build.yml)
-[![Tests](https://github.com/tddworks/ClaudeBar/actions/workflows/tests.yml/badge.svg)](https://github.com/tddworks/ClaudeBar/actions/workflows/tests.yml)
-[![codecov](https://codecov.io/gh/tddworks/ClaudeBar/graph/badge.svg)](https://codecov.io/gh/tddworks/ClaudeBar)
-[![Latest Release](https://img.shields.io/github/v/release/tddworks/ClaudeBar)](https://github.com/tddworks/ClaudeBar/releases/latest)
-[![Swift 6.2](https://img.shields.io/badge/Swift-6.2-orange.svg)](https://swift.org)
-[![Platform](https://img.shields.io/badge/Platform-macOS%2015-blue.svg)](https://developer.apple.com)
-[![Homebrew](https://img.shields.io/badge/Homebrew-Install-brightgreen.svg)](https://formulae.brew.sh/cask/claudebar)
+ClaudeBar Multi-Account is a fork of [ClaudeBar](https://github.com/tddworks/ClaudeBar) (based on v0.4.82) that shows **every Claude subscription you own** — plus Codex, Grok and Antigravity — in one compact menu-bar table.
 
-A macOS menu bar application that monitors AI coding assistant usage quotas. Keep track of your Claude, Codex, Gemini, GitHub Copilot, Antigravity, Z.ai, Kimi, Kiro, Amp, OpenCode Go, Oh My Pi, Grok, and more at a glance.
+<img src="docs/screenshots/panel.png" width="560" alt="The popover: one row per account — three Claude accounts, Codex, Antigravity and Grok — each with 5H, WEEKLY and specialized-model percentages, status bars and reset countdowns" />
 
-<table align="center">
-  <tr>
-    <td align="center"><img src="docs/screenshots/Screenshot-dark.png" alt="Dark Mode" width="360"/><br/><em>Dark Mode</em></td>
-    <td align="center"><img src="docs/screenshots/Screenshot-light.png" alt="Light Mode" width="360"/><br/><em>Light Mode</em></td>
-  </tr>
-  <tr>
-    <td align="center"><img src="docs/screenshots/Screenshot-cli-dark.png" alt="CLI Theme" width="360"/><br/><em>CLI Theme</em></td>
-    <td align="center"><img src="docs/screenshots/Christmas-theme.png" alt="Christmas Theme" width="360"/><br/><em>Christmas Theme</em></td>
-  </tr>
-</table>
+*One glance: 5-hour window, weekly window, and the most constrained specialized-model limit for every account, with reset countdowns on the right.*
 
-## Sponsors
+Stock ClaudeBar tracks a single Claude account. If you run several — say one per company, each with its own `CLAUDE_CONFIG_DIR` — you had to keep switching. This fork gives each account its own row:
 
-Some companies support ClaudeBar's open source development through [GitHub Sponsors](https://github.com/sponsors/hanrw). We'd like to give a special mention to the following sponsors:
+* **Extra Claude accounts** are declared in `~/.claudebar/settings.json`. Each one runs the real `claude /usage` CLI with `CLAUDE_CONFIG_DIR` pointed at that profile, so the CLI owns its own token refresh — no credential copying, nothing that can log a profile out.
+* **Compact overview** — one 52pt row per provider: name, then **5H** (session window, or `—` when the plan has none), **WEEKLY**, and a third column with the **most constrained specialized-model limit** (Fable for Claude, the scarcest Gemini model for Antigravity), each with a percentage, a status bar, and a **resets** column at the far right (`5h 2h 47m / wk 5d 9h / fable 5d 9h`). Six accounts fit without scrolling.
+* **Quiet menu-bar icon** — a monochrome template image that turns red only when the selected account's 5-hour or weekly window is critical or depleted, never for per-model quotas.
+* **Headerless, frosted popover** — the logo header, status pill and close button are gone; the bottom bar is just Dashboard, Refresh, sponsor and settings, over an `NSVisualEffectView` glass background (toggle in Settings → Appearance).
+* **Codex windows classified by duration** — ChatGPT Pro exposes only a weekly Codex bucket; it is no longer mislabeled as a 5-hour window.
+* **Antigravity without the app running** — process detection no longer needs a PTY, the stored Google token is refreshed in memory, and quotas fall back to the Cloud Code per-model endpoint (internal/unnamed models are skipped).
+* **Sparkle auto-update is disabled**, so upstream releases can never silently replace the fork.
 
-<table>
-  <tbody>
-    <tr>
-      <td width="30%" align="center">
-        <a href="https://www.testmuai.com/?utm_source=ClaudeBar&utm_medium=opensourcecollab" target="_blank">
-          <picture>
-            <source media="(prefers-color-scheme: dark)" srcset="docs/sponsors/testmuai/testmuai-dark.svg"/>
-            <img width="220" src="docs/sponsors/testmuai/testmuai-light.svg" alt="testmuai_logo"/>
-          </picture>
-        </a>
-      </td>
-      <td><a href="https://www.testmuai.com/?utm_source=ClaudeBar&utm_medium=opensourcecollab">TestMu AI</a> (formerly LambdaTest) is the world's first full-stack agentic AI quality engineering platform, trusted by 18,000+ enterprises.</td>
-    </tr>
-  </tbody>
-</table>
+Everything else is stock ClaudeBar. Built by [nftstory](https://github.com/nftstory); not affiliated with the upstream project. Upstream's MIT license applies (see [LICENSE](LICENSE)).
 
-> **Editorial independence:** Sponsorship does not influence which providers ClaudeBar supports, how they are ordered in the app, or how their quota data is reported.
+### Configuring extra accounts
 
-## Features
+Quit ClaudeBar, then edit `~/.claudebar/settings.json`. Keys are **nested** (dot-notation paths like `"app.compactOverviewEnabled"` are silently ignored):
 
-- **Multi-Provider Support** - Monitor Claude, Codex, Gemini, GitHub Copilot, Antigravity, Z.ai, Kimi, Kiro, Amp, OpenCode Go, Oh My Pi, and Grok quotas in one place
-- **Provider Enable/Disable** - Toggle individual providers on/off from Settings to customize your monitoring
-- **Real-Time Quota Tracking** - View Session, Weekly, and Model-specific usage percentages
-- **Multiple Themes** - Light, Dark, CLI, Christmas, and [imported terminal themes](#import-terminal-theme) (.itermcolors)
-- **Automatic Adaptation** - System theme follows your macOS appearance; Christmas auto-enables during the holiday season
-- **Visual Status Indicators** - Color-coded progress bars (green/yellow/red) show quota health
-- **System Notifications** - Get alerted when quota status changes to warning or critical
-- **Auto-Refresh** - Automatically updates quotas at configurable intervals
-- **Keyboard Shortcuts** - Quick access with `⌘D` (Dashboard) and `⌘R` (Refresh)
+```json
+{
+  "app": {
+    "overviewModeEnabled": true,
+    "compactOverviewEnabled": true
+  },
+  "claude": {
+    "extraAccounts": [
+      { "id": "claude-work", "label": "Claude · work", "configDir": "/Users/you/.claude-work" },
+      { "id": "claude-side", "label": "Claude · side", "configDir": "/Users/you/.claude-side" }
+    ]
+  }
+}
+```
 
-## Quota Status Thresholds
+Each `configDir` is a directory you have logged into with `CLAUDE_CONFIG_DIR=<dir> claude login`. The default `~/.claude` account remains the first row.
 
-| Remaining | Status | Color |
-|-----------|--------|-------|
-| > 50% | Healthy | Green |
-| 20-50% | Warning | Yellow |
-| < 20% | Critical | Red |
-| 0% | Depleted | Gray |
+### Building and installing
+
+```bash
+brew install tuist
+tuist install
+tuist generate --no-open
+tuist build ClaudeBar -C Release
+codesign --force --deep -s - build/ClaudeBar.app   # ad-hoc signing
+cp -R build/ClaudeBar.app /Applications/
+```
+
+Uninstall the Homebrew cask first (`brew uninstall --cask claudebar`) so it cannot clobber the fork. If you launch the app from a terminal, do it with a clean environment (`env -i HOME=$HOME USER=$USER PATH=$PATH /Applications/ClaudeBar.app/Contents/MacOS/ClaudeBar &`) — an inherited `CLAUDE_CONFIG_DIR` confuses the spawned `claude /usage`.
+
+---
+
+## Upstream documentation
+
+The sections below are carried over from the upstream ClaudeBar README.
 
 ## Requirements
 
@@ -105,49 +99,6 @@ Kiro monitors AWS Kiro (formerly CodeWhisperer) usage through the `kiro-cli` com
 
 **Kiro IDE Users**: If you use Kiro IDE, simply install kiro-cli. Both share the same authentication, so no additional login is required.
 
-## Installation
-
-### Homebrew
-
-Install via [Homebrew](https://brew.sh).
-
-```bash
-brew install --cask claudebar
-```
-
-### Download (Recommended)
-
-Download the latest release from [GitHub Releases](https://github.com/tddworks/ClaudeBar/releases/latest):
-
-- **DMG**: Open and drag ClaudeBar.app to Applications
-- **ZIP**: Unzip and move ClaudeBar.app to Applications
-
-Both are code-signed and notarized for Gatekeeper.
-
-### Build from Source
-
-```bash
-git clone https://github.com/tddworks/ClaudeBar.git
-cd ClaudeBar
-
-# Install Tuist (if not installed)
-brew install tuist
-
-# Install dependencies and build
-tuist install
-tuist build ClaudeBar -C Release
-```
-
-## Usage
-
-After building, open the generated Xcode workspace and run the app:
-
-```bash
-tuist generate
-open ClaudeBar.xcworkspace
-```
-
-Then press `Cmd+R` in Xcode to run. The app will appear in your menu bar. Click to view quota details for each provider.
 
 ## Development
 
@@ -207,157 +158,6 @@ ClaudeBar uses a **layered architecture** with `QuotaMonitor` as the single sour
 - **Chicago School TDD** - Tests verify state changes, not method calls
 - **No ViewModel/AppState** - Views consume domain directly
 
-## Import Terminal Theme
-
-Match ClaudeBar's appearance to your terminal. Import any `.itermcolors` file:
-
-1. Open **Settings** (gear icon)
-2. Click **Import .itermcolors**
-3. Select your file (export from iTerm2: Preferences > Profiles > Colors > Color Presets > Export)
-
-450+ pre-made schemes available at [iTerm2-Color-Schemes](https://github.com/mbadolato/iTerm2-Color-Schemes/tree/master/schemes).
-
-Imported themes are saved in `~/.claudebar/themes/` and persist across restarts.
-
-## Contributing
-
-### Adding a New AI Provider
-
-Use the **add-provider** skill to guide you through adding new providers with TDD:
-
-```
-Tell Claude Code: "I want to add a new provider for [ProviderName]"
-```
-
-The skill guides you through: Parsing Tests → Probe Tests → Implementation → Registration.
-
-See `.claude/skills/add-provider/SKILL.md` for details and `AntigravityUsageProbe` as a reference implementation.
-
-## Dependencies
-
-- [Sparkle](https://sparkle-project.org/) - Auto-update framework
-- [Mockable](https://github.com/Kolos65/Mockable) - Protocol mocking for tests
-- [Tuist](https://tuist.io) - Xcode project generation (for SwiftUI previews)
-
-## Releasing
-
-Releases are automated via GitHub Actions. Push a version tag to create a new release.
-
-**For detailed setup instructions, see [docs/release/RELEASE_SETUP.md](docs/release/RELEASE_SETUP.md).**
-
-### Release Workflow
-
-The workflow uses Tuist to generate the Xcode project:
-
-```
-Tag v1.0.0 → Update Info.plist → tuist generate → xcodebuild → Sign & Notarize → GitHub Release
-```
-
-Version is set in `Sources/App/Info.plist` and flows through to Sparkle auto-updates.
-
-### Quick Start
-
-1. **Configure GitHub Secrets** (see [full guide](docs/release/RELEASE_SETUP.md)):
-
-   | Secret | Description |
-   |--------|-------------|
-   | `APPLE_CERTIFICATE_P12` | Developer ID certificate (base64) |
-   | `APPLE_CERTIFICATE_PASSWORD` | Password for .p12 |
-   | `APP_STORE_CONNECT_API_KEY_P8` | API key (base64) |
-   | `APP_STORE_CONNECT_KEY_ID` | Key ID |
-   | `APP_STORE_CONNECT_ISSUER_ID` | Issuer ID |
-
-2. **Verify your certificate**:
-   ```bash
-   ./scripts/verify-p12.sh /path/to/certificate.p12
-   ```
-
-3. **Create a release**:
-   ```bash
-   git tag v1.0.0
-   git push origin v1.0.0
-   ```
-
-The workflow will automatically build, sign, notarize, and publish to GitHub Releases.
-
-## Contributors
-
-Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
-
-<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
-<!-- prettier-ignore-start -->
-<!-- markdownlint-disable -->
-<table>
-  <tbody>
-    <tr>
-      <td align="center" valign="top" width="16.66%"><a href="https://tddworks.com/"><img src="https://avatars.githubusercontent.com/u/1201118?v=4?s=80" width="80px;" alt="itshan"/><br /><sub><b>itshan</b></sub></a><br /><a href="https://github.com/tddworks/claudebar/commits?author=hanrw" title="Code">💻</a> <a href="https://github.com/tddworks/claudebar/commits?author=hanrw" title="Documentation">📖</a> <a href="#maintenance-hanrw" title="Maintenance">🚧</a></td>
-      <td align="center" valign="top" width="16.66%"><a href="https://github.com/avishj"><img src="https://avatars.githubusercontent.com/u/58023328?v=4?s=80" width="80px;" alt="Avish Jha"/><br /><sub><b>Avish Jha</b></sub></a><br /><a href="https://github.com/tddworks/claudebar/commits?author=avishj" title="Code">💻</a></td>
-      <td align="center" valign="top" width="16.66%"><a href="https://github.com/ramarivera"><img src="https://avatars.githubusercontent.com/u/7547875?v=4?s=80" width="80px;" alt="Ramiro"/><br /><sub><b>Ramiro</b></sub></a><br /><a href="https://github.com/tddworks/claudebar/commits?author=ramarivera" title="Code">💻</a></td>
-      <td align="center" valign="top" width="16.66%"><a href="https://github.com/LunarECL"><img src="https://avatars.githubusercontent.com/u/38317983?v=4?s=80" width="80px;" alt="LunarECL"/><br /><sub><b>LunarECL</b></sub></a><br /><a href="https://github.com/tddworks/claudebar/commits?author=LunarECL" title="Code">💻</a></td>
-      <td align="center" valign="top" width="16.66%"><a href="https://github.com/zenibako"><img src="https://avatars.githubusercontent.com/u/18584424?v=4?s=80" width="80px;" alt="Chandler Anderson"/><br /><sub><b>Chandler Anderson</b></sub></a><br /><a href="https://github.com/tddworks/claudebar/commits?author=zenibako" title="Code">💻</a></td>
-      <td align="center" valign="top" width="16.66%"><a href="https://frmr.me"><img src="https://avatars.githubusercontent.com/u/620189?v=4?s=80" width="80px;" alt="Matt Farmer"/><br /><sub><b>Matt Farmer</b></sub></a><br /><a href="https://github.com/tddworks/claudebar/commits?author=farmdawgnation" title="Code">💻</a></td>
-    </tr>
-    <tr>
-      <td align="center" valign="top" width="16.66%"><a href="https://willner.ws"><img src="https://avatars.githubusercontent.com/u/307605?v=4?s=80" width="80px;" alt="Alex"/><br /><sub><b>Alex</b></sub></a><br /><a href="https://github.com/tddworks/claudebar/commits?author=AlexanderWillner" title="Code">💻</a></td>
-      <td align="center" valign="top" width="16.66%"><a href="https://github.com/sailesh"><img src="https://avatars.githubusercontent.com/u/493129?v=4?s=80" width="80px;" alt="sailesh"/><br /><sub><b>sailesh</b></sub></a><br /><a href="https://github.com/tddworks/claudebar/commits?author=sailesh" title="Code">💻</a></td>
-      <td align="center" valign="top" width="16.66%"><a href="https://github.com/billyjack2"><img src="https://avatars.githubusercontent.com/u/28798344?v=4?s=80" width="80px;" alt="Billy Smith"/><br /><sub><b>Billy Smith</b></sub></a><br /><a href="https://github.com/tddworks/claudebar/commits?author=billyjack2" title="Code">💻</a></td>
-      <td align="center" valign="top" width="16.66%"><a href="https://github.com/nero-sensei"><img src="https://avatars.githubusercontent.com/u/77715088?v=4?s=80" width="80px;" alt="nero"/><br /><sub><b>nero</b></sub></a><br /><a href="https://github.com/tddworks/claudebar/commits?author=nero-sensei" title="Code">💻</a></td>
-      <td align="center" valign="top" width="16.66%"><a href="https://github.com/BryanQQYue"><img src="https://avatars.githubusercontent.com/u/169884865?v=4?s=80" width="80px;" alt="BryanYue"/><br /><sub><b>BryanYue</b></sub></a><br /><a href="https://github.com/tddworks/claudebar/commits?author=BryanQQYue" title="Code">💻</a></td>
-      <td align="center" valign="top" width="16.66%"><a href="https://blog.d0zingcat.dev/"><img src="https://avatars.githubusercontent.com/u/8235790?v=4?s=80" width="80px;" alt="Tony Tang"/><br /><sub><b>Tony Tang</b></sub></a><br /><a href="https://github.com/tddworks/claudebar/commits?author=d0zingcat" title="Code">💻</a></td>
-    </tr>
-    <tr>
-      <td align="center" valign="top" width="16.66%"><a href="https://initialize.nl/"><img src="https://avatars.githubusercontent.com/u/7355878?v=4?s=80" width="80px;" alt="Frank Hommers"/><br /><sub><b>Frank Hommers</b></sub></a><br /><a href="https://github.com/tddworks/claudebar/commits?author=frankhommers" title="Code">💻</a></td>
-      <td align="center" valign="top" width="16.66%"><a href="https://www.marcusquinn.com"><img src="https://avatars.githubusercontent.com/u/6428977?v=4?s=80" width="80px;" alt="Marcus Quinn"/><br /><sub><b>Marcus Quinn</b></sub></a><br /><a href="https://github.com/tddworks/claudebar/commits?author=marcusquinn" title="Code">💻</a></td>
-      <td align="center" valign="top" width="16.66%"><a href="https://github.com/hagiwaratakayuki"><img src="https://avatars.githubusercontent.com/u/141513?v=4?s=80" width="80px;" alt="hagiwara takayuki"/><br /><sub><b>hagiwara takayuki</b></sub></a><br /><a href="https://github.com/tddworks/claudebar/commits?author=hagiwaratakayuki" title="Code">💻</a></td>
-      <td align="center" valign="top" width="16.66%"><a href="https://github.com/jeffscottmtl"><img src="https://avatars.githubusercontent.com/u/33327731?v=4?s=80" width="80px;" alt="jeffscottmtl"/><br /><sub><b>jeffscottmtl</b></sub></a><br /><a href="https://github.com/tddworks/claudebar/commits?author=jeffscottmtl" title="Code">💻</a></td>
-      <td align="center" valign="top" width="16.66%"><a href="https://github.com/tomstetson"><img src="https://avatars.githubusercontent.com/u/11658911?v=4?s=80" width="80px;" alt="Tom"/><br /><sub><b>Tom</b></sub></a><br /><a href="https://github.com/tddworks/claudebar/commits?author=tomstetson" title="Code">💻</a></td>
-      <td align="center" valign="top" width="16.66%"><a href="https://github.com/jeffWelling"><img src="https://avatars.githubusercontent.com/u/105077?v=4?s=80" width="80px;" alt="Jeff Welling"/><br /><sub><b>Jeff Welling</b></sub></a><br /><a href="https://github.com/tddworks/claudebar/commits?author=jeffWelling" title="Code">💻</a></td>
-    </tr>
-    <tr>
-      <td align="center" valign="top" width="16.66%"><a href="https://github.com/Zada5"><img src="https://avatars.githubusercontent.com/u/91982194?v=4?s=80" width="80px;" alt="Zada5"/><br /><sub><b>Zada5</b></sub></a><br /><a href="https://github.com/tddworks/claudebar/commits?author=Zada5" title="Code">💻</a></td>
-      <td align="center" valign="top" width="16.66%"><a href="https://github.com/fredericoricco-debug"><img src="https://avatars.githubusercontent.com/u/75469834?v=4?s=80" width="80px;" alt="fredericoricco-debug"/><br /><sub><b>fredericoricco-debug</b></sub></a><br /><a href="https://github.com/tddworks/claudebar/commits?author=fredericoricco-debug" title="Code">💻</a></td>
-      <td align="center" valign="top" width="16.66%"><a href="https://lystic.dev"><img src="https://avatars.githubusercontent.com/u/15372623?v=4?s=80" width="80px;" alt="Kegan Hollern"/><br /><sub><b>Kegan Hollern</b></sub></a><br /><a href="https://github.com/tddworks/claudebar/commits?author=KeganHollern" title="Code">💻</a></td>
-      <td align="center" valign="top" width="16.66%"><a href="https://github.com/jsg333"><img src="https://avatars.githubusercontent.com/u/954990?v=4?s=80" width="80px;" alt="Jeff Green"/><br /><sub><b>Jeff Green</b></sub></a><br /><a href="https://github.com/tddworks/claudebar/commits?author=jsg333" title="Code">💻</a></td>
-      <td align="center" valign="top" width="16.66%"><a href="https://github.com/benjaminbelaga"><img src="https://avatars.githubusercontent.com/u/33546317?v=4?s=80" width="80px;" alt="Benjamin Belaga"/><br /><sub><b>Benjamin Belaga</b></sub></a><br /><a href="https://github.com/tddworks/claudebar/commits?author=benjaminbelaga" title="Code">💻</a></td>
-      <td align="center" valign="top" width="16.66%"><a href="https://github.com/romanvalent"><img src="https://avatars.githubusercontent.com/u/14106124?v=4?s=80" width="80px;" alt="romanvalent"/><br /><sub><b>romanvalent</b></sub></a><br /><a href="https://github.com/tddworks/claudebar/commits?author=romanvalent" title="Code">💻</a></td>
-    </tr>
-    <tr>
-      <td align="center" valign="top" width="16.66%"><a href="http://aakshintala.com"><img src="https://avatars.githubusercontent.com/u/748697?v=4?s=80" width="80px;" alt="Amogh Akshintala"/><br /><sub><b>Amogh Akshintala</b></sub></a><br /><a href="https://github.com/tddworks/claudebar/commits?author=aakshintala" title="Code">💻</a></td>
-      <td align="center" valign="top" width="16.66%"><a href="https://www.portfolio.isnakolah.me"><img src="https://avatars.githubusercontent.com/u/47239024?v=4?s=80" width="80px;" alt="Daniel Nakolah"/><br /><sub><b>Daniel Nakolah</b></sub></a><br /><a href="https://github.com/tddworks/claudebar/commits?author=isnakolah" title="Code">💻</a></td>
-      <td align="center" valign="top" width="16.66%"><a href="https://github.com/Mitsi-ag"><img src="https://avatars.githubusercontent.com/u/141203898?v=4?s=80" width="80px;" alt="Mitsi-ag"/><br /><sub><b>Mitsi-ag</b></sub></a><br /><a href="https://github.com/tddworks/claudebar/commits?author=Mitsi-ag" title="Code">💻</a></td>
-      <td align="center" valign="top" width="16.66%"><a href="https://www.josecancinolinares.com/en/portfolio"><img src="https://avatars.githubusercontent.com/u/65030646?v=4?s=80" width="80px;" alt="José Cancino Linares"/><br /><sub><b>José Cancino Linares</b></sub></a><br /><a href="https://github.com/tddworks/claudebar/commits?author=josecancino" title="Code">💻</a></td>
-      <td align="center" valign="top" width="16.66%"><a href="https://github.com/logancox"><img src="https://avatars.githubusercontent.com/u/28828028?v=4?s=80" width="80px;" alt="logancox"/><br /><sub><b>logancox</b></sub></a><br /><a href="https://github.com/tddworks/claudebar/commits?author=logancox" title="Code">💻</a></td>
-      <td align="center" valign="top" width="16.66%"><a href="http://ywmei.ca/index.php"><img src="https://avatars.githubusercontent.com/u/5897309?v=4?s=80" width="80px;" alt="y5mei"/><br /><sub><b>y5mei</b></sub></a><br /><a href="https://github.com/tddworks/claudebar/commits?author=y5mei" title="Code">💻</a></td>
-    </tr>
-    <tr>
-      <td align="center" valign="top" width="16.66%"><a href="https://hansonkim.github.io"><img src="https://avatars.githubusercontent.com/u/1308073?v=4?s=80" width="80px;" alt="Hanson Kim"/><br /><sub><b>Hanson Kim</b></sub></a><br /><a href="https://github.com/tddworks/claudebar/commits?author=hansonkim" title="Code">💻</a></td>
-    </tr>
-  </tbody>
-  <tfoot>
-    <tr>
-      <td align="center" size="13px" colspan="6">
-        <img src="https://raw.githubusercontent.com/all-contributors/all-contributors-cli/1b8533af435da9854653492b1327a23a4dbd0a10/assets/logo-small.svg">
-          <a href="https://all-contributors.js.org/docs/en/bot/usage">Add your contributions</a>
-        </img>
-      </td>
-    </tr>
-  </tfoot>
-</table>
-
-<!-- markdownlint-restore -->
-<!-- prettier-ignore-end -->
-
-<!-- ALL-CONTRIBUTORS-LIST:END -->
-<!-- markdownlint-restore -->
-<!-- prettier-ignore-end -->
-
-This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind welcome!
-
-To credit someone, comment on any issue or pull request:
-
-```
-@all-contributors please add @username for code, doc
-```
 
 ## License
 
