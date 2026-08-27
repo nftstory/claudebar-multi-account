@@ -33,11 +33,11 @@ struct AntigravityCloudCodeFallbackTests {
 
     static let modelsJSON = """
     {"models":{
-      "gemini-3-pro":{"displayName":"Gemini 3 Pro","quotaInfo":{"remainingFraction":0.65,"resetTime":"2026-09-01T00:00:00Z"}},
-      "gemini-3-flash":{"displayName":"Gemini 3 Flash","quotaInfo":{"resetTime":"2026-09-02T00:00:00Z"}},
-      "claude-sonnet":{"displayName":"Claude Sonnet","quotaInfo":{"remainingFraction":0.25}},
-      "internal":{"displayName":"Hidden","isInternal":true,"quotaInfo":{"remainingFraction":1.0}},
-      "no-quota":{"displayName":"No Quota"}
+      "chat_20706":{"isInternal":true,"quotaInfo":{"remainingFraction":0.0}},
+      "gemini-3-1-flash-a":{"displayName":"Gemini 3.1 Flash","quotaInfo":{"remainingFraction":0.9}},
+      "gemini-3-1-flash-b":{"displayName":"Gemini 3.1 Flash","quotaInfo":{"remainingFraction":0.4,"resetTime":"2026-09-02T00:00:00Z"}},
+      "gemini-3-6-pro":{"displayName":"Gemini 3.6 Pro","quotaInfo":{"remainingFraction":0.7,"resetTime":"2026-09-01T00:00:00Z"}},
+      "unnamed-model":{"quotaInfo":{"remainingFraction":0.1}}
     }}
     """
 
@@ -124,7 +124,7 @@ struct AntigravityCloudCodeFallbackTests {
     }
 
     @Test
-    func `probe falls back to every model quota and current tier when summary returns 403`() async throws {
+    func `probe fallback skips internal and unnamed models and deduplicates labels`() async throws {
         let executor = makeExecutor(process: Self.noProcessOutput, keychain: CLIResult(output: Self.keychainBlob(), exitCode: 0))
         let remote = MockNetworkClient()
         given(remote).request(.any).willProduce { request in
@@ -144,12 +144,11 @@ struct AntigravityCloudCodeFallbackTests {
         let probe = AntigravityUsageProbe(cliExecutor: executor, remoteNetworkClient: remote)
         let snapshot = try await probe.probe()
 
-        #expect(snapshot.quotas.count == 4)
-        #expect(snapshot.quotas.contains { $0.quotaType == .modelSpecific("Gemini 3 Pro") && $0.percentRemaining == 65.0 })
-        #expect(snapshot.quotas.contains { $0.quotaType == .modelSpecific("Claude Sonnet") && $0.percentRemaining == 25.0 })
-        #expect(snapshot.quotas.contains { $0.quotaType == .modelSpecific("Gemini 3 Flash") && $0.percentRemaining == 0.0 })
-        #expect(snapshot.quotas.contains { $0.quotaType == .modelSpecific("Hidden") && $0.percentRemaining == 100.0 })
-        #expect(snapshot.quotas.first { $0.quotaType == .modelSpecific("Gemini 3 Pro") }?.resetsAt == ISO8601DateFormatter().date(from: "2026-09-01T00:00:00Z"))
+        #expect(snapshot.quotas.count == 2)
+        #expect(snapshot.quotas.contains { $0.quotaType == .modelSpecific("Gemini 3.1 Flash") && $0.percentRemaining == 40.0 })
+        #expect(snapshot.quotas.contains { $0.quotaType == .modelSpecific("Gemini 3.6 Pro") && $0.percentRemaining == 70.0 })
+        #expect(snapshot.quotas.allSatisfy { !$0.quotaType.displayName.lowercased().contains("chat_") })
+        #expect(snapshot.quotas.first { $0.quotaType == .modelSpecific("Gemini 3.6 Pro") }?.resetsAt == ISO8601DateFormatter().date(from: "2026-09-01T00:00:00Z"))
         #expect(snapshot.quotas.allSatisfy { $0.resetText == nil })
         #expect(snapshot.accountTier == .custom("FREE-TIER"))
     }

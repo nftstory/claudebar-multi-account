@@ -20,9 +20,12 @@ public enum CompactResetFormatter {
     }
 
     /// Builds the reset lines shown at the far right of a compact overview row.
-    public static func lines(for snapshot: UsageSnapshot, now: Date) -> [String] {
-        let orderedQuotas = [snapshot.sessionQuota, snapshot.weeklyQuota].compactMap { $0 }
-            + snapshot.modelSpecificQuotas
+    public static func lines(for snapshot: UsageSnapshot, providerId: String, now: Date) -> [String] {
+        let orderedQuotas = [
+            snapshot.sessionQuota,
+            snapshot.weeklyQuota,
+            CompactColumns.specialQuota(in: snapshot, providerId: providerId),
+        ].compactMap { $0 }
         let lines = orderedQuotas.compactMap { quota -> String? in
             guard let countdown = countdown(for: quota, now: now) else { return nil }
             return "\(key(for: quota)) \(countdown)"

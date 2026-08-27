@@ -42,14 +42,18 @@ struct CompactResetFormatterTests {
     }
 
     @Test
-    func `reset lines order session weekly then model quotas`() {
+    func `reset lines match the three compact columns and select the most constrained model`() {
         let snapshot = UsageSnapshot(providerId: "claude", quotas: [
-            quota(type: .modelSpecific("fable"), resetsAt: now.addingTimeInterval(3 * 24 * 60 * 60)),
+            quota(percentRemaining: 80, type: .modelSpecific("opus"), resetsAt: now.addingTimeInterval(6 * 24 * 60 * 60)),
+            quota(percentRemaining: 70, type: .modelSpecific("sonnet"), resetsAt: now.addingTimeInterval(5 * 24 * 60 * 60)),
+            quota(percentRemaining: 10, type: .modelSpecific("fable"), resetsAt: now.addingTimeInterval(3 * 24 * 60 * 60)),
+            quota(percentRemaining: 60, type: .modelSpecific("haiku"), resetsAt: now.addingTimeInterval(2 * 24 * 60 * 60)),
+            quota(percentRemaining: 50, type: .modelSpecific("other"), resetsAt: now.addingTimeInterval(24 * 60 * 60)),
             quota(type: .weekly, resetText: "Resets in 1d 4h"),
             quota(type: .session, resetsAt: now.addingTimeInterval(2 * 60 * 60 + 8 * 60)),
         ], capturedAt: now)
 
-        #expect(CompactResetFormatter.lines(for: snapshot, now: now) == [
+        #expect(CompactResetFormatter.lines(for: snapshot, providerId: "claude", now: now) == [
             "5h 2h 8m",
             "wk 1d 4h",
             "fable 3d",
@@ -66,7 +70,7 @@ struct CompactResetFormatterTests {
             ),
         ], capturedAt: now)
 
-        #expect(CompactResetFormatter.lines(for: snapshot, now: now) == ["3.6 pr 4h"])
+        #expect(CompactResetFormatter.lines(for: snapshot, providerId: "antigravity", now: now) == ["3.6 pr 4h"])
     }
 
     @Test
@@ -77,9 +81,21 @@ struct CompactResetFormatterTests {
             quota(type: .modelSpecific("fable"), resetsAt: sharedReset),
         ], capturedAt: now)
 
-        #expect(CompactResetFormatter.lines(for: snapshot, now: now) == [
+        #expect(CompactResetFormatter.lines(for: snapshot, providerId: "claude", now: now) == [
             "wk 1d",
             "fable 1d",
+        ])
+    }
+
+    @Test
+    func `Grok reset lines exclude the Build quota`() {
+        let snapshot = UsageSnapshot(providerId: "grok", quotas: [
+            quota(type: .weekly, resetText: "Resets in 1d 4h"),
+            quota(type: .modelSpecific("Build"), resetsAt: now.addingTimeInterval(2 * 60 * 60)),
+        ], capturedAt: now)
+
+        #expect(CompactResetFormatter.lines(for: snapshot, providerId: "grok", now: now) == [
+            "wk 1d 4h",
         ])
     }
 
@@ -90,17 +106,18 @@ struct CompactResetFormatterTests {
             quota(type: .weekly),
         ], capturedAt: now)
 
-        #expect(CompactResetFormatter.lines(for: snapshot, now: now) == ["—"])
+        #expect(CompactResetFormatter.lines(for: snapshot, providerId: "claude", now: now) == ["—"])
     }
 
     private func quota(
+        percentRemaining: Double = 50,
         type: QuotaType,
         resetsAt: Date? = nil,
         resetText: String? = nil,
         compactTitle: String? = nil
     ) -> UsageQuota {
         UsageQuota(
-            percentRemaining: 50,
+            percentRemaining: percentRemaining,
             quotaType: type,
             providerId: "test",
             resetsAt: resetsAt,

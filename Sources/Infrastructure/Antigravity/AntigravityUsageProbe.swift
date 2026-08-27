@@ -567,20 +567,33 @@ public struct AntigravityUsageProbe: UsageProbe {
               let models = response.models else {
             return []
         }
-        return models
-            .sorted { $0.key < $1.key }
-            .compactMap { key, model -> UsageQuota? in
-                guard let quotaInfo = model.quotaInfo else { return nil }
-                let label = [model.displayName, model.label, key]
-                    .compactMap { $0?.trimmingCharacters(in: .whitespaces) }
-                    .first { !$0.isEmpty } ?? key
-                return UsageQuota(
-                    percentRemaining: (quotaInfo.remainingFraction ?? 0.0) * 100,
-                    quotaType: .modelSpecific(label),
-                    providerId: providerId,
-                    resetsAt: quotaInfo.resetTime.flatMap { parseResetTime($0) }
-                )
+
+        var quotasByLabel: [String: UsageQuota] = [:]
+        var orderedLabels: [String] = []
+        for (_, model) in models.sorted(by: { $0.key < $1.key }) {
+            guard model.isInternal != true, let quotaInfo = model.quotaInfo else { continue }
+            guard let label = [model.displayName, model.label]
+                .compactMap({ $0?.trimmingCharacters(in: .whitespacesAndNewlines) })
+                .first(where: { !$0.isEmpty }) else {
+                continue
             }
+
+            let quota = UsageQuota(
+                percentRemaining: (quotaInfo.remainingFraction ?? 0.0) * 100,
+                quotaType: .modelSpecific(label),
+                providerId: providerId,
+                resetsAt: quotaInfo.resetTime.flatMap { parseResetTime($0) }
+            )
+            if let existing = quotasByLabel[label] {
+                if quota.percentRemaining < existing.percentRemaining {
+                    quotasByLabel[label] = quota
+                }
+            } else {
+                quotasByLabel[label] = quota
+                orderedLabels.append(label)
+            }
+        }
+        return orderedLabels.compactMap { quotasByLabel[$0] }
     }
 
     /// Parses Cloud Code `loadCodeAssist` for the subscription tier name.

@@ -393,7 +393,7 @@ struct MenuContentView: View {
                 )
                 .frame(maxWidth: .infinity)
 
-                compactResetColumn(snapshot: snapshot)
+                compactResetColumn(snapshot: snapshot, providerId: provider.id)
             } else if provider.isSyncing {
                 LoadingSpinnerView(isCompact: true)
                     .frame(maxWidth: .infinity)
@@ -452,10 +452,10 @@ struct MenuContentView: View {
         .frame(height: 40, alignment: .top)
     }
 
-    private func compactResetColumn(snapshot: UsageSnapshot) -> some View {
+    private func compactResetColumn(snapshot: UsageSnapshot, providerId: String) -> some View {
         VStack(alignment: .trailing, spacing: 1) {
             ForEach(
-                Array(CompactResetFormatter.lines(for: snapshot, now: Date()).enumerated()),
+                Array(CompactResetFormatter.lines(for: snapshot, providerId: providerId, now: Date()).enumerated()),
                 id: \.offset
             ) { _, line in
                 Text(line)
@@ -468,6 +468,7 @@ struct MenuContentView: View {
             }
         }
         .frame(width: 92, height: 40, alignment: .trailing)
+        .clipped()
     }
 
     private func providerSection(provider: any AIProvider) -> some View {
