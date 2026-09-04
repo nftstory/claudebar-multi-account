@@ -76,7 +76,8 @@ struct ZaiUsageProbeTests {
             input: .any,
             timeout: .any,
             workingDirectory: .any,
-            autoResponses: .any
+            autoResponses: .any,
+            completion: .any
         ).willReturn(CLIResult(output: Self.sampleClaudeConfigWithZai, exitCode: 0))
 
         let probe = ZaiUsageProbe(cliExecutor: mockExecutor, settingsRepository: makeSettingsRepository())
@@ -98,7 +99,8 @@ struct ZaiUsageProbeTests {
             input: .any,
             timeout: .any,
             workingDirectory: .any,
-            autoResponses: .any
+            autoResponses: .any,
+            completion: .any
         ).willReturn(CLIResult(output: Self.sampleClaudeConfigWithoutZai, exitCode: 0))
 
         let probe = ZaiUsageProbe(cliExecutor: mockExecutor, settingsRepository: makeSettingsRepository())
@@ -132,7 +134,8 @@ struct ZaiUsageProbeTests {
             input: .any,
             timeout: .any,
             workingDirectory: .any,
-            autoResponses: .any
+            autoResponses: .any,
+            completion: .any
         ).willThrow(ProbeError.executionFailed("File not found"))
 
         let probe = ZaiUsageProbe(cliExecutor: mockExecutor, settingsRepository: makeSettingsRepository())
@@ -165,7 +168,8 @@ struct ZaiUsageProbeTests {
             input: .any,
             timeout: .any,
             workingDirectory: .any,
-            autoResponses: .any
+            autoResponses: .any,
+            completion: .any
         ).willReturn(CLIResult(output: configWithZhipu, exitCode: 0))
 
         let probe = ZaiUsageProbe(cliExecutor: mockExecutor, settingsRepository: makeSettingsRepository())
@@ -261,7 +265,8 @@ struct ZaiUsageProbeTests {
             input: .any,
             timeout: .any,
             workingDirectory: .any,
-            autoResponses: .any
+            autoResponses: .any,
+            completion: .any
         ).willReturn(CLIResult(output: Self.sampleClaudeConfigEmpty, exitCode: 0))
 
         let probe = ZaiUsageProbe(cliExecutor: mockExecutor, settingsRepository: makeSettingsRepository())
@@ -289,7 +294,8 @@ struct ZaiUsageProbeTests {
             input: .any,
             timeout: .any,
             workingDirectory: .any,
-            autoResponses: .any
+            autoResponses: .any,
+            completion: .any
         ).willReturn(CLIResult(output: Self.sampleClaudeConfigWithZai, exitCode: 0))
 
         // API returns valid response
@@ -334,7 +340,8 @@ struct ZaiUsageProbeTests {
             input: .any,
             timeout: .any,
             workingDirectory: .any,
-            autoResponses: .any
+            autoResponses: .any,
+            completion: .any
         ).willReturn(CLIResult(output: Self.sampleClaudeConfigWithZai, exitCode: 0))
 
         // API returns 401
@@ -372,7 +379,8 @@ struct ZaiUsageProbeTests {
             input: .any,
             timeout: .any,
             workingDirectory: .any,
-            autoResponses: .any
+            autoResponses: .any,
+            completion: .any
         ).willReturn(CLIResult(output: Self.sampleClaudeConfigWithZai, exitCode: 0))
 
         // API returns 500
@@ -410,7 +418,8 @@ struct ZaiUsageProbeTests {
             input: .any,
             timeout: .any,
             workingDirectory: .any,
-            autoResponses: .any
+            autoResponses: .any,
+            completion: .any
         ).willReturn(CLIResult(output: Self.sampleClaudeConfigWithZai, exitCode: 0))
 
         // API returns invalid JSON

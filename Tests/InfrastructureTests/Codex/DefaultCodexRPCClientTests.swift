@@ -108,15 +108,13 @@ struct DefaultCodexRPCClientTests {
     }
 
     @Test
-    func `fetchRateLimits throws when no rate limits and TTY fallback fails`() async throws {
-        // Given - paid plan but no rate limits data, TTY fallback also fails
+    func `fetchRateLimits throws when no rate limits are available`() async throws {
+        // Given - paid plan but no rate limits data
         let mockTransport = MockRPCTransport()
         let mockExecutor = MockCLIExecutor()
         setupMockTransport(mockTransport, rateLimitsResponse: """
         {"id":2,"result":{"rateLimits":{"planType":"pro"}}}
         """)
-        // TTY fallback will also fail
-        given(mockExecutor).execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any).willThrow(ProbeError.executionFailed("TTY not available"))
 
         let client = DefaultCodexRPCClient(transport: mockTransport, cliExecutor: mockExecutor)
 
@@ -127,34 +125,33 @@ struct DefaultCodexRPCClientTests {
     }
 
     @Test
-    func `fetchRateLimits throws on RPC error and TTY fallback fails`() async throws {
-        // Given - RPC returns error, TTY fallback also fails
+    func `fetchRateLimits surfaces RPC error text`() async throws {
+        // Given - RPC returns an error
         let mockTransport = MockRPCTransport()
         let mockExecutor = MockCLIExecutor()
         setupMockTransport(mockTransport, rateLimitsResponse: """
         {"id":2,"error":{"message":"Authentication required"}}
         """)
-        // TTY fallback will also fail
-        given(mockExecutor).execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any).willThrow(ProbeError.executionFailed("TTY not available"))
 
         let client = DefaultCodexRPCClient(transport: mockTransport, cliExecutor: mockExecutor)
 
-        // When & Then
-        await #expect(throws: ProbeError.self) {
-            try await client.fetchRateLimits()
+        do {
+            _ = try await client.fetchRateLimits()
+            Issue.record("Expected app-server error")
+        } catch {
+            #expect(error.localizedDescription.contains("Codex app-server failed"))
+            #expect(error.localizedDescription.contains("Authentication required"))
         }
     }
 
     @Test
-    func `fetchRateLimits throws when result missing and TTY fallback fails`() async throws {
-        // Given - response without result, TTY fallback also fails
+    func `fetchRateLimits throws when result is missing`() async throws {
+        // Given - response without result
         let mockTransport = MockRPCTransport()
         let mockExecutor = MockCLIExecutor()
         setupMockTransport(mockTransport, rateLimitsResponse: """
         {"id":2}
         """)
-        // TTY fallback will also fail
-        given(mockExecutor).execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any).willThrow(ProbeError.executionFailed("TTY not available"))
 
         let client = DefaultCodexRPCClient(transport: mockTransport, cliExecutor: mockExecutor)
 
@@ -298,6 +295,84 @@ struct DefaultCodexRPCClientTests {
     // MARK: - Process Leak Fix Tests
 
     @Test
+    func `production transport receives Codex 0_151 app-server arguments`() async throws {
+        let mockTransport = MockRPCTransport()
+        let mockExecutor = MockCLIExecutor()
+        setupMockTransport(mockTransport, rateLimitsResponse: """
+        {"id":2,"result":{"rateLimits":{"planType":"pro","primary":{"usedPercent":28,"windowDurationMins":10080,"resetsAt":1788757212},"secondary":null}}}
+        """)
+        var capturedExecutable: String?
+        var capturedArguments: [String]?
+
+        let client = DefaultCodexRPCClient(executable: "codex", cliExecutor: mockExecutor)
+        client.transportFactory = { executable, arguments in
+            capturedExecutable = executable
+            capturedArguments = arguments
+            return mockTransport
+        }
+
+        _ = try await client.fetchRateLimits()
+
+        #expect(capturedExecutable == "codex")
+        #expect(capturedArguments == ["-s", "read-only", "-a", "never", "app-server"])
+    }
+
+    @Test
+    func `real app-server response maps only account weekly quota`() async throws {
+        let mockTransport = MockRPCTransport()
+        setupMockTransport(mockTransport, rateLimitsResponse: """
+        {
+          "id": 2,
+          "result": {
+            "rateLimits": {
+              "primary": {
+                "usedPercent": 28,
+                "windowDurationMins": 10080,
+                "resetsAt": 1788757212
+              },
+              "secondary": null,
+              "planType": "pro"
+            },
+            "rateLimitsByLimitId": {
+              "codex_bengalfox": {
+                "primary": {"usedPercent": 0, "windowDurationMins": 300},
+                "secondary": {"usedPercent": 0, "windowDurationMins": 10080}
+              }
+            }
+          }
+        }
+        """)
+        let client = DefaultCodexRPCClient(transport: mockTransport)
+
+        let response = try await client.fetchRateLimits()
+        let snapshot = try CodexUsageProbe.mapRateLimitsToSnapshot(response)
+
+        #expect(snapshot.quotas.count == 1)
+        let weekly = try #require(snapshot.weeklyQuota)
+        #expect(weekly.percentRemaining == 72)
+        #expect(weekly.resetsAt == Date(timeIntervalSince1970: 1788757212))
+        #expect(snapshot.sessionQuota == nil)
+    }
+
+    @Test
+    func `transport failure makes probe throw without a snapshot`() async {
+        let mockTransport = MockRPCTransport()
+        given(mockTransport).send(.any).willReturn(())
+        given(mockTransport).receive().willThrow(ProbeError.executionFailed("Process closed unexpectedly"))
+        given(mockTransport).close().willReturn(())
+        let client = DefaultCodexRPCClient(transport: mockTransport)
+        let probe = CodexUsageProbe(client: client)
+
+        do {
+            _ = try await probe.probe()
+            Issue.record("Expected transport failure instead of a snapshot")
+        } catch {
+            #expect(error.localizedDescription.contains("Codex app-server failed"))
+            #expect(error.localizedDescription.contains("Process closed unexpectedly"))
+        }
+    }
+
+    @Test
     func `fetchRateLimits closes locally created transport after successful fetch`() async throws {
         // Given - production path: no injected transport, factory provides a mock
         let mockTransport = MockRPCTransport()
@@ -318,14 +393,12 @@ struct DefaultCodexRPCClientTests {
 
     @Test
     func `fetchRateLimits closes locally created transport even when RPC throws`() async throws {
-        // Given - RPC will fail, TTY fallback will also fail
+        // Given - RPC will fail
         let mockTransport = MockRPCTransport()
         let mockExecutor = MockCLIExecutor()
         given(mockTransport).send(.any).willReturn(())
         given(mockTransport).receive().willThrow(ProbeError.executionFailed("RPC failed"))
         given(mockTransport).close().willReturn(())
-        given(mockExecutor).execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any)
-            .willThrow(ProbeError.executionFailed("TTY not available"))
 
         let client = DefaultCodexRPCClient(executable: "codex", cliExecutor: mockExecutor)
         client.transportFactory = { _, _ in mockTransport }

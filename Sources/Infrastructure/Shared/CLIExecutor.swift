@@ -12,6 +12,14 @@ public struct CLIResult: Sendable, Equatable {
     }
 }
 
+/// Determines when an interactive CLI capture is complete.
+public enum CompletionPolicy: Sendable, Equatable {
+    /// Complete after the existing three-second meaningful-output idle window.
+    case idle
+    /// Complete only when the rendered terminal screen is ready and no longer pending.
+    case renderedScreen(pending: [String], ready: [String])
+}
+
 /// Protocol for executing CLI commands.
 /// From user's mental model: "Is this tool available?" and "Run it and get my stats"
 @Mockable
@@ -28,12 +36,36 @@ public protocol CLIExecutor: Sendable {
     ///   - timeout: Maximum time to wait
     ///   - workingDirectory: Directory to run in (nil = inherited)
     ///   - autoResponses: Automatic responses to prompts (prompt text → response to send)
+    ///   - completion: Policy used to decide when interactive output is complete
     func execute(
         binary: String,
         args: [String],
         input: String?,
         timeout: TimeInterval,
         workingDirectory: URL?,
-        autoResponses: [String: String]
+        autoResponses: [String: String],
+        completion: CompletionPolicy
     ) throws -> CLIResult
+}
+
+public extension CLIExecutor {
+    func execute(
+        binary: String,
+        args: [String],
+        input: String?,
+        timeout: TimeInterval,
+        workingDirectory: URL?,
+        autoResponses: [String: String],
+        completion: CompletionPolicy = .idle
+    ) throws -> CLIResult {
+        try execute(
+            binary: binary,
+            args: args,
+            input: input,
+            timeout: timeout,
+            workingDirectory: workingDirectory,
+            autoResponses: autoResponses,
+            completion: completion
+        )
+    }
 }

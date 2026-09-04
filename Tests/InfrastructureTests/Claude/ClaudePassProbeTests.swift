@@ -141,7 +141,8 @@ struct ClaudePassProbeTests {
             input: .any,
             timeout: .any,
             workingDirectory: .any,
-            autoResponses: .any
+            autoResponses: .any,
+            completion: .any
         ).willReturn(CLIResult(output: passOutput, exitCode: 0))
 
         let probe = ClaudePassProbe(cliExecutor: mockExecutor)
@@ -175,7 +176,8 @@ struct ClaudePassProbeTests {
             input: .any,
             timeout: .any,
             workingDirectory: .any,
-            autoResponses: .any
+            autoResponses: .any,
+            completion: .any
         ).willReturn(CLIResult(output: passOutput, exitCode: 0))
 
         let probe = ClaudePassProbe(cliExecutor: mockExecutor, clipboardReader: mockClipboard)
@@ -205,7 +207,8 @@ struct ClaudePassProbeTests {
             input: .any,
             timeout: .any,
             workingDirectory: .any,
-            autoResponses: .any
+            autoResponses: .any,
+            completion: .any
         ).willReturn(CLIResult(output: passOutput, exitCode: 0))
 
         let probe = ClaudePassProbe(cliExecutor: mockExecutor, clipboardReader: mockClipboard)
@@ -245,7 +248,8 @@ struct ClaudePassProbeTests {
             input: .any,
             timeout: .any,
             workingDirectory: .any,
-            autoResponses: .any
+            autoResponses: .any,
+            completion: .any
         ).willThrow(ProbeError.executionFailed("CLI error"))
 
         let probe = ClaudePassProbe(cliExecutor: mockExecutor)

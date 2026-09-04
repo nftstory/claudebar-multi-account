@@ -50,8 +50,8 @@ struct AntigravityCloudCodeFallbackTests {
     private func makeExecutor(process: String, keychain: CLIResult) -> MockCLIExecutor {
         let mock = MockCLIExecutor()
         given(mock)
-            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any)
-            .willProduce { binary, _, _, _, _, _ in
+            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any, completion: .any)
+            .willProduce { binary, _, _, _, _, _, _ in
                 if binary.hasSuffix("security") { return keychain }
                 return CLIResult(output: process, exitCode: 0)
             }
@@ -229,8 +229,8 @@ struct AntigravityCloudCodeFallbackTests {
     func `detection executor failure falls through to Cloud Code`() async throws {
         let executor = MockCLIExecutor()
         given(executor)
-            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any)
-            .willProduce { binary, _, _, _, _, _ in
+            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any, completion: .any)
+            .willProduce { binary, _, _, _, _, _, _ in
                 if binary.hasSuffix("pgrep") { throw ProbeError.timeout }
                 if binary.hasSuffix("security") {
                     return CLIResult(output: Self.keychainBlob(), exitCode: 0)

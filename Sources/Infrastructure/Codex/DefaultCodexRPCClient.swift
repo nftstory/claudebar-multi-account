@@ -42,12 +42,12 @@ public final class DefaultCodexRPCClient: CodexRPCClient, @unchecked Sendable {
     }
 
     public func fetchRateLimits() async throws -> CodexRateLimitsResponse {
-        // Try RPC first, fall back to TTY
         do {
             return try await fetchViaRPC()
         } catch {
-            AppLog.probes.warning("Codex RPC failed: \(error.localizedDescription), trying TTY fallback...")
-            return try await fetchViaTTY()
+            let message = "Codex app-server failed: \(error.localizedDescription)"
+            AppLog.probes.error("\(message)")
+            throw ProbeError.executionFailed(message)
         }
     }
 
@@ -63,7 +63,7 @@ public final class DefaultCodexRPCClient: CodexRPCClient, @unchecked Sendable {
             let factory = transportFactory ?? { exec, args in
                 try ProcessRPCTransport(executable: exec, arguments: args)
             }
-            activeTransport = try factory(executable, ["-s", "read-only", "-a", "untrusted", "app-server"])
+            activeTransport = try factory(executable, ["-s", "read-only", "-a", "never", "app-server"])
             ownsTransport = true
         }
         defer {
@@ -118,99 +118,6 @@ public final class DefaultCodexRPCClient: CodexRPCClient, @unchecked Sendable {
         }
 
         return CodexRateLimitsResponse(primary: primary, secondary: secondary, planType: planType)
-    }
-
-    // MARK: - TTY Fallback
-
-    private func fetchViaTTY() async throws -> CodexRateLimitsResponse {
-        AppLog.probes.info("Starting Codex TTY fallback...")
-
-        let result = try cliExecutor.execute(
-            binary: executable,
-            args: ["-s", "read-only", "-a", "untrusted"],
-            input: "/status\n",
-            timeout: 20.0,
-            workingDirectory: nil,
-            autoResponses: [:]
-        )
-
-        AppLog.probes.debug("Codex TTY raw output:\n\(result.output)")
-
-        do {
-            return try parseTTYOutput(result.output)
-        } catch {
-            AppLog.probes.debug("Working directory: \(FileManager.default.currentDirectoryPath)")
-            throw error
-        }
-    }
-
-    private func parseTTYOutput(_ text: String) throws -> CodexRateLimitsResponse {
-        let clean = CodexUsageProbe.stripANSICodes(text)
-
-        // Check for errors
-        if let error = CodexUsageProbe.extractUsageError(clean) {
-            throw error
-        }
-
-        let fiveHourPct = extractTTYPercent(labelSubstring: "5h limit", text: clean)
-        let weeklyPct = extractTTYPercent(labelSubstring: "Weekly limit", text: clean)
-
-        var primary: CodexRateLimitWindow?
-        var secondary: CodexRateLimitWindow?
-
-        if let pct = fiveHourPct {
-            // TTY shows "% left", convert to usedPercent
-            primary = CodexRateLimitWindow(
-                usedPercent: Double(100 - pct),
-                resetDescription: nil,
-                windowDuration: 5 * 60 * 60,
-                resetsAt: nil
-            )
-        }
-
-        if let pct = weeklyPct {
-            secondary = CodexRateLimitWindow(
-                usedPercent: Double(100 - pct),
-                resetDescription: nil,
-                windowDuration: 7 * 24 * 60 * 60,
-                resetsAt: nil
-            )
-        }
-
-        guard primary != nil || secondary != nil else {
-            throw ProbeError.parseFailed("Could not find usage limits in Codex output")
-        }
-
-        return CodexRateLimitsResponse(primary: primary, secondary: secondary)
-    }
-
-    private func extractTTYPercent(labelSubstring: String, text: String) -> Int? {
-        let lines = text.components(separatedBy: .newlines)
-        let label = labelSubstring.lowercased()
-
-        for (idx, line) in lines.enumerated() where line.lowercased().contains(label) {
-            let window = lines.dropFirst(idx).prefix(12)
-            for candidate in window {
-                if let pct = ttyPercentFromLine(candidate) {
-                    return pct
-                }
-            }
-        }
-        return nil
-    }
-
-    private func ttyPercentFromLine(_ line: String) -> Int? {
-        let pattern = #"([0-9]{1,3})%\s+left"#
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
-            return nil
-        }
-        let range = NSRange(line.startIndex..<line.endIndex, in: line)
-        guard let match = regex.firstMatch(in: line, options: [], range: range),
-              match.numberOfRanges >= 2,
-              let valRange = Range(match.range(at: 1), in: line) else {
-            return nil
-        }
-        return Int(line[valRange])
     }
 
     // MARK: - Parsing Helpers

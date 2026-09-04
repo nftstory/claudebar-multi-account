@@ -16,6 +16,22 @@ public final class ClaudeUsageProbe: UsageProbe, @unchecked Sendable {
     private let cliExecutor: CLIExecutor
     private let terminalRenderer: TerminalRenderer
 
+    internal struct UsageSection: Equatable {
+        let heading: String
+        var lines: [String]
+    }
+
+    private static let sectionStartPrefixes = [
+        "Current session",
+        "Current week",
+        "Extra usage",
+        "What's contributing",
+        "Usage credits",
+        "Approximate,",
+        "Esc to cancel",
+        "Last 24h",
+    ]
+
     /// Environment variables to strip from the CLI subprocess.
     /// `CLAUDE_CODE_OAUTH_TOKEN` is excluded because setup-tokens only have
     /// `user:inference` scope and cannot access quota data via `/usage`.
@@ -79,7 +95,11 @@ public final class ClaudeUsageProbe: UsageProbe, @unchecked Sendable {
                     "Press Enter to continue": "\r",
                     "ctrl+t to disable": "\r",  // Onboarding complete
                     "Yes, I trust this folder": "\r",  // New trust prompt format
-                ]
+                ],
+                completion: .renderedScreen(
+                    pending: ["Loading usage data", "Refreshing"],
+                    ready: ["Current session"]
+                )
             )
         } catch {
             AppLog.probes.error("Claude /usage probe failed: \(error.localizedDescription)")
@@ -274,6 +294,7 @@ public final class ClaudeUsageProbe: UsageProbe, @unchecked Sendable {
 
     private func parseClaudeOutput(_ text: String) throws -> UsageSnapshot {
         let clean = renderTerminalOutput(text)
+        let sections = tokenizeSections(clean)
 
         // Log both original and normalized output for debugging
         AppLog.probes.debug("Claude /usage raw output (\(text.count) chars):\n\(text)")
@@ -295,16 +316,16 @@ public final class ClaudeUsageProbe: UsageProbe, @unchecked Sendable {
         // to /cost. detectAccountType() classifies by header/quota only.
 
         // Extract percentages
-        let sessionPct = extractPercent(labelSubstring: "Current session", text: clean)
-        let weeklyPct = extractPercent(labelSubstring: "Current week (all models)", text: clean)
+        let sessionPct = extractPercent(labelSubstring: "Current session", sections: sections)
+        let weeklyPct = extractPercent(labelSubstring: "Current week (all models)", sections: sections)
         // Check for model-specific quota (Opus, Sonnet, or Fable)
-        let opusPct = extractPercent(labelSubstring: "Current week (Opus)", text: clean)
+        let opusPct = extractPercent(labelSubstring: "Current week (Opus)", sections: sections)
         let sonnetPct = extractPercent(labelSubstrings: [
             "Current week (Sonnet only)",
             "Current week (Sonnet)",
-        ], text: clean)
+        ], sections: sections)
         // Paren-open anchor also matches a future "Current week (Fable 5)" label
-        let fablePct = extractPercent(labelSubstring: "Current week (Fable", text: clean)
+        let fablePct = extractPercent(labelSubstring: "Current week (Fable", sections: sections)
 
         guard let sessionPct else {
             AppLog.probes.error("Claude parse failed: could not find 'Current session' percentage in output")
@@ -314,8 +335,8 @@ public final class ClaudeUsageProbe: UsageProbe, @unchecked Sendable {
         }
 
         // Extract reset times
-        let sessionReset = extractReset(labelSubstring: "Current session", text: clean)
-        let weeklyReset = extractReset(labelSubstring: "Current week", text: clean)
+        let sessionReset = extractReset(labelSubstring: "Current session", sections: sections)
+        let weeklyReset = extractReset(labelSubstring: "Current week", sections: sections)
 
         // Build quotas
         var quotas: [UsageQuota] = []
@@ -363,7 +384,7 @@ public final class ClaudeUsageProbe: UsageProbe, @unchecked Sendable {
             // all-models weekly, so anchor on its own section before falling back.
             // The model key must match what the API probe derives from the scoped
             // limit's display name ("fable").
-            let fableReset = extractReset(labelSubstring: "Current week (Fable", text: clean) ?? weeklyReset
+            let fableReset = extractReset(labelSubstring: "Current week (Fable", sections: sections) ?? weeklyReset
             quotas.append(UsageQuota(
                 percentRemaining: Double(fablePct),
                 quotaType: .modelSpecific("fable"),
@@ -374,7 +395,7 @@ public final class ClaudeUsageProbe: UsageProbe, @unchecked Sendable {
         }
 
         // Extract Extra usage for Pro accounts (if enabled)
-        let extraUsage = extractExtraUsage(clean)
+        let extraUsage = extractExtraUsage(clean, sections: sections)
 
         return UsageSnapshot(
             providerId: "claude",
@@ -433,7 +454,10 @@ public final class ClaudeUsageProbe: UsageProbe, @unchecked Sendable {
     /// Extracts Extra usage information from Pro accounts.
     /// Format: "Extra usage\n█████ 27% used\n$5.41 / $20.00 spent · Resets Jan 1, 2026"
     internal func extractExtraUsage(_ text: String) -> CostUsage? {
-        let lines = text.components(separatedBy: .newlines)
+        extractExtraUsage(text, sections: tokenizeSections(text))
+    }
+
+    private func extractExtraUsage(_ text: String, sections: [UsageSection]) -> CostUsage? {
         let lower = text.lowercased()
 
         // Check if Extra usage section exists
@@ -447,22 +471,11 @@ public final class ClaudeUsageProbe: UsageProbe, @unchecked Sendable {
             return nil
         }
 
-        // Find the Extra usage section
-        var extraUsageIndex: Int?
-        for (idx, line) in lines.enumerated() where line.lowercased().contains("extra usage") {
-            extraUsageIndex = idx
-            break
-        }
-
-        guard let startIndex = extraUsageIndex else {
-            return nil
-        }
-
-        // Look for cost pattern in subsequent lines: "$5.41 / $20.00 spent"
-        let window = lines.dropFirst(startIndex).prefix(10)
-        for line in window {
-            if let costInfo = parseExtraUsageCostLine(line) {
-                let resetText = extractReset(labelSubstring: "Extra usage", text: text)
+        let extraUsageSections = matchingSections(labelSubstring: "Extra usage", in: sections)
+        for section in extraUsageSections {
+            for line in section.lines {
+                guard let costInfo = parseExtraUsageCostLine(line) else { continue }
+                let resetText = extractExtraUsageReset(in: section)
                 let resetDate = parseResetDate(resetText)
 
                 return CostUsage(
@@ -509,6 +522,39 @@ public final class ClaudeUsageProbe: UsageProbe, @unchecked Sendable {
 
     // MARK: - Text Parsing Helpers
 
+    internal func tokenizeSections(_ text: String) -> [UsageSection] {
+        var sections: [UsageSection] = []
+        var current: UsageSection?
+
+        for line in text.components(separatedBy: .newlines) {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            let isSectionStart = Self.sectionStartPrefixes.contains { prefix in
+                trimmed.range(of: prefix, options: [.anchored, .caseInsensitive]) != nil
+            }
+
+            if isSectionStart {
+                if let current {
+                    sections.append(current)
+                }
+                current = UsageSection(heading: trimmed, lines: [line])
+            } else if current != nil {
+                current?.lines.append(line)
+            }
+        }
+
+        if let current {
+            sections.append(current)
+        }
+        return sections
+    }
+
+    private func matchingSections(
+        labelSubstring: String,
+        in sections: [UsageSection]
+    ) -> [UsageSection] {
+        sections.filter { $0.heading.range(of: labelSubstring, options: .caseInsensitive) != nil }
+    }
+
     /// Renders raw terminal output into clean text using SwiftTerm.
     /// Properly handles cursor movements, screen clearing, and other control sequences.
     internal func renderTerminalOutput(_ text: String) -> String {
@@ -516,12 +562,12 @@ public final class ClaudeUsageProbe: UsageProbe, @unchecked Sendable {
     }
 
     internal func extractPercent(labelSubstring: String, text: String) -> Int? {
-        let lines = text.components(separatedBy: .newlines)
-        let label = labelSubstring.lowercased()
+        extractPercent(labelSubstring: labelSubstring, sections: tokenizeSections(text))
+    }
 
-        for (idx, line) in lines.enumerated() where line.lowercased().contains(label) {
-            let window = lines.dropFirst(idx).prefix(12)
-            for candidate in window {
+    private func extractPercent(labelSubstring: String, sections: [UsageSection]) -> Int? {
+        for section in matchingSections(labelSubstring: labelSubstring, in: sections) {
+            for candidate in section.lines {
                 if let pct = percentFromLine(candidate) {
                     return pct
                 }
@@ -531,8 +577,12 @@ public final class ClaudeUsageProbe: UsageProbe, @unchecked Sendable {
     }
 
     internal func extractPercent(labelSubstrings: [String], text: String) -> Int? {
+        extractPercent(labelSubstrings: labelSubstrings, sections: tokenizeSections(text))
+    }
+
+    private func extractPercent(labelSubstrings: [String], sections: [UsageSection]) -> Int? {
         for label in labelSubstrings {
-            if let value = extractPercent(labelSubstring: label, text: text) {
+            if let value = extractPercent(labelSubstring: label, sections: sections) {
                 return value
             }
         }
@@ -557,20 +607,44 @@ public final class ClaudeUsageProbe: UsageProbe, @unchecked Sendable {
     }
 
     internal func extractReset(labelSubstring: String, text: String) -> String? {
-        let lines = text.components(separatedBy: .newlines)
-        let label = labelSubstring.lowercased()
+        extractReset(labelSubstring: labelSubstring, sections: tokenizeSections(text))
+    }
 
-        for (idx, line) in lines.enumerated() where line.lowercased().contains(label) {
-            let window = lines.dropFirst(idx).prefix(14)
-            for candidate in window {
-                let lower = candidate.lowercased()
-                // Look for "resets" or time indicators like "2h" or "30m"
-                if lower.contains("reset") ||
-                   (lower.contains("in") && (lower.contains("h") || lower.contains("m"))) {
-                    let trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+    private func extractReset(labelSubstring: String, sections: [UsageSection]) -> String? {
+        guard let resetRegex = try? NSRegularExpression(
+            pattern: #"^Resets?\b"#,
+            options: .caseInsensitive
+        ) else {
+            return nil
+        }
+
+        for section in matchingSections(labelSubstring: labelSubstring, in: sections) {
+            for candidate in section.lines {
+                let trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+                let range = NSRange(trimmed.startIndex..<trimmed.endIndex, in: trimmed)
+                if resetRegex.firstMatch(in: trimmed, range: range) != nil {
                     return deduplicateResetText(trimmed)
                 }
             }
+        }
+        return nil
+    }
+
+    private func extractExtraUsageReset(in section: UsageSection) -> String? {
+        guard let resetRegex = try? NSRegularExpression(
+            pattern: #"\bResets?\b.*$"#,
+            options: .caseInsensitive
+        ) else {
+            return nil
+        }
+
+        for candidate in section.lines {
+            let range = NSRange(candidate.startIndex..<candidate.endIndex, in: candidate)
+            guard let match = resetRegex.firstMatch(in: candidate, range: range),
+                  let resetRange = Range(match.range, in: candidate) else {
+                continue
+            }
+            return deduplicateResetText(String(candidate[resetRange]))
         }
         return nil
     }

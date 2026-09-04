@@ -82,7 +82,7 @@ struct AntigravityKeychainCredentialLoaderTests {
     func `load returns credentials when security CLI succeeds`() {
         let mockExecutor = MockCLIExecutor()
         given(mockExecutor)
-            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any)
+            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any, completion: .any)
             .willReturn(CLIResult(output: Self.goKeyringWrapped + "\n", exitCode: 0))
 
         let loader = AntigravityKeychainCredentialLoader(cliExecutor: mockExecutor)
@@ -94,7 +94,7 @@ struct AntigravityKeychainCredentialLoaderTests {
     func `load returns nil when keychain item is missing`() {
         let mockExecutor = MockCLIExecutor()
         given(mockExecutor)
-            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any)
+            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any, completion: .any)
             .willReturn(CLIResult(output: "security: SecKeychainSearchCopyNext: The specified item could not be found in the keychain.", exitCode: 44))
 
         let loader = AntigravityKeychainCredentialLoader(cliExecutor: mockExecutor)

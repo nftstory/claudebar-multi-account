@@ -49,7 +49,8 @@ struct KimiCLIUsageProbeTests {
             input: .any,
             timeout: .any,
             workingDirectory: .any,
-            autoResponses: .any
+            autoResponses: .any,
+            completion: .any
         ).willReturn(CLIResult(output: Self.validCLIOutput, exitCode: 0))
 
         let probe = KimiCLIUsageProbe(cliExecutor: mockExecutor)
@@ -86,7 +87,8 @@ struct KimiCLIUsageProbeTests {
             input: .any,
             timeout: .any,
             workingDirectory: .any,
-            autoResponses: .any
+            autoResponses: .any,
+            completion: .any
         ).willReturn(CLIResult(output: "Unexpected output with no usage data", exitCode: 0))
 
         let probe = KimiCLIUsageProbe(cliExecutor: mockExecutor)
@@ -107,7 +109,8 @@ struct KimiCLIUsageProbeTests {
             input: .any,
             timeout: .any,
             workingDirectory: .any,
-            autoResponses: .any
+            autoResponses: .any,
+            completion: .any
         ).willThrow(NSError(domain: "test", code: 1, userInfo: [NSLocalizedDescriptionKey: "Process timed out"]))
 
         let probe = KimiCLIUsageProbe(cliExecutor: mockExecutor)

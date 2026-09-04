@@ -28,7 +28,7 @@ struct ScriptProbeTests {
 
         let executor = MockCLIExecutor()
         given(executor)
-            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any)
+            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any, completion: .any)
             .willReturn(CLIResult(output: scriptOutput, exitCode: 0))
         given(executor).locate(.any).willReturn("/path/to/probe.sh")
 
@@ -67,7 +67,7 @@ struct ScriptProbeTests {
 
         let executor = MockCLIExecutor()
         given(executor)
-            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any)
+            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any, completion: .any)
             .willReturn(CLIResult(output: scriptOutput, exitCode: 0))
         given(executor).locate(.any).willReturn("/bin/sh")
 
@@ -100,7 +100,7 @@ struct ScriptProbeTests {
 
         let executor = MockCLIExecutor()
         given(executor)
-            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any)
+            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any, completion: .any)
             .willReturn(CLIResult(output: scriptOutput, exitCode: 0))
         given(executor).locate(.any).willReturn("/bin/sh")
 
@@ -125,7 +125,7 @@ struct ScriptProbeTests {
     func `probe throws on non-zero exit code`() async {
         let executor = MockCLIExecutor()
         given(executor)
-            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any)
+            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any, completion: .any)
             .willReturn(CLIResult(output: "error occurred", exitCode: 1))
         given(executor).locate(.any).willReturn("/bin/sh")
 
@@ -147,7 +147,7 @@ struct ScriptProbeTests {
     func `probe throws on invalid JSON output`() async {
         let executor = MockCLIExecutor()
         given(executor)
-            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any)
+            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any, completion: .any)
             .willReturn(CLIResult(output: "not json", exitCode: 0))
         given(executor).locate(.any).willReturn("/bin/sh")
 
@@ -202,8 +202,8 @@ struct ScriptProbeTests {
         let executor = MockCLIExecutor()
         var capturedArgs: [String] = []
         given(executor)
-            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any)
-            .willProduce { _, args, _, _, _, _ in
+            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any, completion: .any)
+            .willProduce { _, args, _, _, _, _, _ in
                 capturedArgs = args
                 return CLIResult(output: scriptOutput, exitCode: 0)
             }
@@ -252,8 +252,8 @@ struct ScriptProbeTests {
         let executor = MockCLIExecutor()
         var capturedArgs: [String] = []
         given(executor)
-            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any)
-            .willProduce { _, args, _, _, _, _ in
+            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any, completion: .any)
+            .willProduce { _, args, _, _, _, _, _ in
                 capturedArgs = args
                 return CLIResult(output: scriptOutput, exitCode: 0)
             }

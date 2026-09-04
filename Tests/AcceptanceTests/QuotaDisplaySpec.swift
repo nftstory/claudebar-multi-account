@@ -48,7 +48,8 @@ struct QuotaDisplaySpec {
             given(mockExecutor).locate(.any).willReturn("/usr/local/bin/claude")
             given(mockExecutor).execute(
                 binary: .any, args: .any, input: .any,
-                timeout: .any, workingDirectory: .any, autoResponses: .any
+                timeout: .any, workingDirectory: .any, autoResponses: .any,
+            completion: .any
             ).willReturn(CLIResult(output: """
                 Claude Code v1.0.27
 
@@ -106,7 +107,8 @@ struct QuotaDisplaySpec {
             given(mockExecutor).locate(.any).willReturn("/usr/local/bin/claude")
             given(mockExecutor).execute(
                 binary: .any, args: .any, input: .any,
-                timeout: .any, workingDirectory: .any, autoResponses: .any
+                timeout: .any, workingDirectory: .any, autoResponses: .any,
+            completion: .any
             ).willReturn(CLIResult(output: """
                 Current session
                 ████████████████░░░░ 65% left
@@ -151,7 +153,8 @@ struct QuotaDisplaySpec {
             given(mockExecutor).locate(.any).willReturn("/usr/local/bin/claude")
             given(mockExecutor).execute(
                 binary: .any, args: .any, input: .any,
-                timeout: .any, workingDirectory: .any, autoResponses: .any
+                timeout: .any, workingDirectory: .any, autoResponses: .any,
+            completion: .any
             ).willReturn(CLIResult(output: """
                 Current session
                 ░░░░░░░░░░░░░░░░░░░░ 0% left

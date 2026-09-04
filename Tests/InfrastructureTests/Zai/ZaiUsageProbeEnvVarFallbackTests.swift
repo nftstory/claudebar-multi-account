@@ -54,7 +54,8 @@ struct ZaiUsageProbeEnvVarFallbackTests {
             input: .any,
             timeout: .any,
             workingDirectory: .any,
-            autoResponses: .any
+            autoResponses: .any,
+            completion: .any
         ).willReturn(CLIResult(output: Self.sampleConfigWithKey, exitCode: 0))
 
         let mockNetwork = MockNetworkClient()
@@ -78,7 +79,8 @@ struct ZaiUsageProbeEnvVarFallbackTests {
             input: .any,
             timeout: .any,
             workingDirectory: .any,
-            autoResponses: .any
+            autoResponses: .any,
+            completion: .any
         ).willReturn(CLIResult(output: Self.sampleConfigWithoutKey, exitCode: 0))
 
         let mockNetwork = MockNetworkClient()
@@ -102,7 +104,8 @@ struct ZaiUsageProbeEnvVarFallbackTests {
             input: .any,
             timeout: .any,
             workingDirectory: .any,
-            autoResponses: .any
+            autoResponses: .any,
+            completion: .any
         ).willReturn(CLIResult(output: Self.sampleConfigWithoutKey, exitCode: 0))
 
         let mockNetwork = MockNetworkClient()
@@ -139,7 +142,8 @@ struct ZaiUsageProbeEnvVarFallbackTests {
             input: .any,
             timeout: .any,
             workingDirectory: .any,
-            autoResponses: .any
+            autoResponses: .any,
+            completion: .any
         ).willReturn(CLIResult(output: "", exitCode: 0))
 
         let mockNetwork = MockNetworkClient()

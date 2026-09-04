@@ -29,18 +29,6 @@ struct CodexUsageProbeTests {
         #expect(await probe.isAvailable() == false)
     }
 
-    @Test
-    func `stripANSICodes removes colors`() {
-        let input = "\u{1B}[32mGreen\u{1B}[0m Text"
-        #expect(CodexUsageProbe.stripANSICodes(input) == "Green Text")
-    }
-
-    @Test
-    func `extractUsageError finds common errors`() {
-        #expect(CodexUsageProbe.extractUsageError("data not available yet") != nil)
-        #expect(CodexUsageProbe.extractUsageError("Update available: 1.2.1 ... codex") == .updateRequired)
-        #expect(CodexUsageProbe.extractUsageError("All good") == nil)
-    }
 }
 
 // MARK: - Probe Tests

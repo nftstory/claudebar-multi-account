@@ -57,7 +57,8 @@ struct AmpCodeUsageProbeTests {
                 input: .any,
                 timeout: .any,
                 workingDirectory: .any,
-                autoResponses: .any
+                autoResponses: .any,
+                completion: .any
             )
             .willReturn(CLIResult(output: Self.sampleOutput, exitCode: 0))
 
@@ -100,7 +101,7 @@ struct AmpCodeUsageProbeTests {
         
         // 2. Execute returns error code
         given(mockExecutor)
-            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any)
+            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any, completion: .any)
             .willReturn(CLIResult(output: "Error: something went wrong", exitCode: 1))
 
         let probe = AmpCodeUsageProbe(cliExecutor: mockExecutor)
@@ -118,7 +119,7 @@ struct AmpCodeUsageProbeTests {
         given(mockExecutor).locate(.value("amp")).willReturn("/usr/local/bin/amp")
         
         given(mockExecutor)
-            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any)
+            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any, completion: .any)
             .willThrow(ProbeError.executionFailed("timeout"))
 
         let probe = AmpCodeUsageProbe(cliExecutor: mockExecutor)

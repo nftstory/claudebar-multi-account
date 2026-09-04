@@ -40,7 +40,8 @@ struct GeminiCLIProbeBehaviorTests {
             input: .any,
             timeout: .any,
             workingDirectory: .any,
-            autoResponses: .any
+            autoResponses: .any,
+            completion: .any
         ).willReturn(CLIResult(output: statsOutput))
 
         let probe = GeminiCLIProbe(timeout: 30, cliExecutor: mockExecutor)
@@ -64,7 +65,8 @@ struct GeminiCLIProbeBehaviorTests {
             input: .any,
             timeout: .any,
             workingDirectory: .any,
-            autoResponses: .any
+            autoResponses: .any,
+            completion: .any
         ).willThrow(InteractiveRunner.RunError.timedOut)
 
         let probe = GeminiCLIProbe(timeout: 30, cliExecutor: mockExecutor)
@@ -86,7 +88,8 @@ struct GeminiCLIProbeBehaviorTests {
             input: .any,
             timeout: .any,
             workingDirectory: .any,
-            autoResponses: .any
+            autoResponses: .any,
+            completion: .any
         ).willThrow(InteractiveRunner.RunError.launchFailed("Permission denied"))
 
         let probe = GeminiCLIProbe(timeout: 30, cliExecutor: mockExecutor)
@@ -108,7 +111,8 @@ struct GeminiCLIProbeBehaviorTests {
             input: .any,
             timeout: .any,
             workingDirectory: .any,
-            autoResponses: .any
+            autoResponses: .any,
+            completion: .any
         ).willReturn(CLIResult(output: "Please login with Google to continue"))
 
         let probe = GeminiCLIProbe(timeout: 30, cliExecutor: mockExecutor)
@@ -130,7 +134,8 @@ struct GeminiCLIProbeBehaviorTests {
             input: .any,
             timeout: .any,
             workingDirectory: .any,
-            autoResponses: .any
+            autoResponses: .any,
+            completion: .any
         ).willReturn(CLIResult(output: "Some random output without stats"))
 
         let probe = GeminiCLIProbe(timeout: 30, cliExecutor: mockExecutor)
@@ -158,7 +163,8 @@ struct GeminiCLIProbeBehaviorTests {
             input: .any,
             timeout: .any,
             workingDirectory: .any,
-            autoResponses: .any
+            autoResponses: .any,
+            completion: .any
         ).willReturn(CLIResult(output: statsOutput))
 
         let probe = GeminiCLIProbe(timeout: 30, cliExecutor: mockExecutor)

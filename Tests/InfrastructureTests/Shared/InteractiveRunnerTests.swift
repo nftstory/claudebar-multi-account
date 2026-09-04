@@ -32,6 +32,7 @@ struct InteractiveRunnerTests {
         let options = InteractiveRunner.Options()
         #expect(options.environmentExclusions.isEmpty)
         #expect(options.environmentOverrides.isEmpty)
+        #expect(options.completion == .idle)
     }
 
     @Test
@@ -87,6 +88,93 @@ struct InteractiveRunnerTests {
         )
 
         #expect(result.output.contains("CLAUDEBAR_TEST_OVERRIDE_VAR=overridden"))
+    }
+
+    @Test
+    func `idle completion still returns output from a process that stays open`() throws {
+        let runner = InteractiveRunner()
+        let start = Date()
+
+        let result = try runner.run(
+            binary: "/bin/sh",
+            input: "",
+            options: .init(
+                timeout: 8,
+                arguments: ["-c", "printf ready; read ignored"],
+                completion: .idle
+            )
+        )
+
+        #expect(result.output.contains("ready"))
+        #expect(Date().timeIntervalSince(start) >= 3.0)
+    }
+}
+
+@Suite("CaptureDecision")
+struct CaptureDecisionTests {
+    @Test
+    func `loading screen continues`() {
+        let decision = InteractiveRunner.CaptureDecision.evaluate(
+            screen: "Loading usage data…",
+            policy: .renderedScreen(pending: ["Loading usage data"], ready: ["Current session"]),
+            idleFor: 4,
+            pastDeadline: false
+        )
+
+        #expect(decision == .continue)
+    }
+
+    @Test
+    func `ready screen after loading completes`() {
+        let renderer = TerminalRenderer(cols: 160, rows: 50)
+        let screen = renderer.render(
+            "Loading usage data…\u{1B}[2J\u{1B}[HCurrent session\n0% used"
+        )
+        let decision = InteractiveRunner.CaptureDecision.evaluate(
+            screen: screen,
+            policy: .renderedScreen(pending: ["Loading usage data"], ready: ["Current session"]),
+            idleFor: 0,
+            pastDeadline: false
+        )
+
+        #expect(!screen.contains("Loading usage data"))
+        #expect(decision == .complete)
+    }
+
+    @Test
+    func `idle policy completes after three seconds`() {
+        let decision = InteractiveRunner.CaptureDecision.evaluate(
+            screen: "output",
+            policy: .idle,
+            idleFor: 3.1,
+            pastDeadline: false
+        )
+
+        #expect(decision == .complete)
+    }
+
+    @Test
+    func `idle policy continues before three seconds`() {
+        let decision = InteractiveRunner.CaptureDecision.evaluate(
+            screen: "output",
+            policy: .idle,
+            idleFor: 1,
+            pastDeadline: false
+        )
+
+        #expect(decision == .continue)
+    }
+
+    @Test
+    func `pending screen at deadline times out`() {
+        let decision = InteractiveRunner.CaptureDecision.evaluate(
+            screen: "Refreshing usage data",
+            policy: .renderedScreen(pending: ["Refreshing"], ready: ["Current session"]),
+            idleFor: 20,
+            pastDeadline: true
+        )
+
+        #expect(decision == .timeout)
     }
 }
 

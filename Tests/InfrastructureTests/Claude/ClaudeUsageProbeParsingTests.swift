@@ -175,6 +175,65 @@ struct ClaudeUsageProbeParsingTests {
     }
 
     @Test
+    func `quota sections do not borrow reset-like contribution prose`() throws {
+        let output = """
+        Current session
+        0% used
+
+        Current week (all models)
+        0% used
+
+        Current week (Fable)
+        0% used
+
+        What's contributing to your limits usage?
+        A 2h task contributed to usage and the next report arrives at 10pm.
+        """
+
+        let snapshot = try simulateParse(text: output)
+
+        #expect(snapshot.quotas.count == 3)
+        #expect(snapshot.quotas.allSatisfy { $0.percentRemaining == 100 })
+        #expect(snapshot.quotas.allSatisfy { $0.resetText == nil })
+        #expect(snapshot.quotas.allSatisfy { $0.resetsAt == nil })
+    }
+
+    @Test
+    func `session without reset does not borrow weekly reset`() throws {
+        let weeklyReset = "Resets Sep 8 at 10pm (America/Toronto)"
+        let output = """
+        Current session
+        12% used
+
+        Current week (all models)
+        18% used
+        \(weeklyReset)
+        """
+
+        let snapshot = try simulateParse(text: output)
+
+        #expect(snapshot.sessionQuota?.resetText == nil)
+        #expect(snapshot.sessionQuota?.resetsAt == nil)
+        #expect(snapshot.weeklyQuota?.resetText == weeklyReset)
+    }
+
+    @Test
+    func `session without percent does not borrow weekly percent`() {
+        let output = """
+        Current session
+        Resets Sep 5 at 10pm (America/Toronto)
+
+        Current week (all models)
+        18% used
+        Resets Sep 8 at 10pm (America/Toronto)
+        """
+
+        #expect(throws: ProbeError.self) {
+            try simulateParse(text: output)
+        }
+    }
+
+    @Test
     func `detects depleted quota at zero percent`() throws {
         // Given
         let output = Self.exhaustedQuotaOutput

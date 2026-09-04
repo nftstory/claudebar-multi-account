@@ -61,7 +61,7 @@ struct AntigravityUsageProbeTests {
         // Given
         let mockExecutor = MockCLIExecutor()
         given(mockExecutor)
-            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any)
+            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any, completion: .any)
             .willReturn(CLIResult(output: Self.samplePsOutputNoAntigravity, exitCode: 0))
 
         let probe = AntigravityUsageProbe(cliExecutor: mockExecutor)
@@ -75,7 +75,7 @@ struct AntigravityUsageProbeTests {
         // Given
         let mockExecutor = MockCLIExecutor()
         given(mockExecutor)
-            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any)
+            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any, completion: .any)
             .willReturn(CLIResult(output: Self.samplePsOutputWithAntigravity, exitCode: 0))
 
         let probe = AntigravityUsageProbe(cliExecutor: mockExecutor)
@@ -89,7 +89,7 @@ struct AntigravityUsageProbeTests {
         // Given
         let mockExecutor = MockCLIExecutor()
         given(mockExecutor)
-            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any)
+            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any, completion: .any)
             .willReturn(CLIResult(output: Self.samplePsOutputWithAntigravityARM, exitCode: 0))
 
         let probe = AntigravityUsageProbe(cliExecutor: mockExecutor)
@@ -103,7 +103,7 @@ struct AntigravityUsageProbeTests {
         // Given
         let mockExecutor = MockCLIExecutor()
         given(mockExecutor)
-            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any)
+            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any, completion: .any)
             .willReturn(CLIResult(output: Self.samplePsOutputWithCurrentAntigravity, exitCode: 0))
 
         let probe = AntigravityUsageProbe(cliExecutor: mockExecutor)
@@ -117,7 +117,7 @@ struct AntigravityUsageProbeTests {
         // Given
         let mockExecutor = MockCLIExecutor()
         given(mockExecutor)
-            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any)
+            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any, completion: .any)
             .willReturn(CLIResult(output: Self.samplePsOutputMissingToken, exitCode: 0))
 
         let probe = AntigravityUsageProbe(cliExecutor: mockExecutor)
@@ -213,7 +213,7 @@ struct AntigravityUsageProbeTests {
     func `detection maps empty pgrep exit one to cliNotFound`() async {
         let mockExecutor = MockCLIExecutor()
         given(mockExecutor)
-            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any)
+            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any, completion: .any)
             .willReturn(CLIResult(output: "", exitCode: 1))
 
         let probe = AntigravityUsageProbe(cliExecutor: mockExecutor)
@@ -228,7 +228,7 @@ struct AntigravityUsageProbeTests {
         // Given
         let mockExecutor = MockCLIExecutor()
         given(mockExecutor)
-            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any)
+            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any, completion: .any)
             .willReturn(CLIResult(output: Self.samplePsOutputNoAntigravity, exitCode: 0))
 
         let probe = AntigravityUsageProbe(cliExecutor: mockExecutor)
@@ -244,7 +244,7 @@ struct AntigravityUsageProbeTests {
         // Given
         let mockExecutor = MockCLIExecutor()
         given(mockExecutor)
-            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any)
+            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any, completion: .any)
             .willReturn(CLIResult(output: Self.samplePsOutputMissingToken, exitCode: 0))
 
         let probe = AntigravityUsageProbe(cliExecutor: mockExecutor)
@@ -266,8 +266,8 @@ struct AntigravityUsageProbeTests {
         // Second call: lsof fails
         var callCount = 0
         given(mockExecutor)
-            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any)
-            .willProduce { _, _, _, _, _, _ in
+            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any, completion: .any)
+            .willProduce { _, _, _, _, _, _, _ in
                 callCount += 1
                 if callCount == 1 {
                     return CLIResult(output: Self.samplePsOutputWithAntigravity, exitCode: 0)
@@ -292,8 +292,8 @@ struct AntigravityUsageProbeTests {
         // ps returns process, lsof returns no ports
         var callCount = 0
         given(mockExecutor)
-            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any)
-            .willProduce { _, _, _, _, _, _ in
+            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any, completion: .any)
+            .willProduce { _, _, _, _, _, _, _ in
                 callCount += 1
                 if callCount == 1 {
                     return CLIResult(output: Self.samplePsOutputWithAntigravity, exitCode: 0)
@@ -321,8 +321,8 @@ struct AntigravityUsageProbeTests {
         // ps returns process, lsof returns listening ports
         var callCount = 0
         given(mockExecutor)
-            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any)
-            .willProduce { _, _, _, _, _, _ in
+            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any, completion: .any)
+            .willProduce { _, _, _, _, _, _, _ in
                 callCount += 1
                 if callCount == 1 {
                     return CLIResult(output: Self.samplePsOutputWithAntigravity, exitCode: 0)
@@ -367,8 +367,8 @@ struct AntigravityUsageProbeTests {
         // ps returns process, lsof returns listening ports
         var callCount = 0
         given(mockExecutor)
-            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any)
-            .willProduce { _, _, _, _, _, _ in
+            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any, completion: .any)
+            .willProduce { _, _, _, _, _, _, _ in
                 callCount += 1
                 if callCount == 1 {
                     return CLIResult(output: Self.samplePsOutputWithAntigravity, exitCode: 0)
@@ -406,8 +406,8 @@ struct AntigravityUsageProbeTests {
         // ps returns process, lsof returns listening ports
         var callCount = 0
         given(mockExecutor)
-            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any)
-            .willProduce { _, _, _, _, _, _ in
+            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any, completion: .any)
+            .willProduce { _, _, _, _, _, _, _ in
                 callCount += 1
                 if callCount == 1 {
                     return CLIResult(output: Self.samplePsOutputWithAntigravity, exitCode: 0)
@@ -449,8 +449,8 @@ struct AntigravityUsageProbeTests {
         """
         var callCount = 0
         given(mockExecutor)
-            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any)
-            .willProduce { _, _, _, _, _, _ in
+            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any, completion: .any)
+            .willProduce { _, _, _, _, _, _, _ in
                 callCount += 1
                 if callCount == 1 {
                     return CLIResult(output: psOutput, exitCode: 0)

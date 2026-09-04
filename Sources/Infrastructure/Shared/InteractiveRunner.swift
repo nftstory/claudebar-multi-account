@@ -16,6 +16,34 @@ import Foundation
 /// ```
 public struct InteractiveRunner: Sendable {
 
+    internal enum CaptureDecision: Equatable {
+        case `continue`
+        case complete
+        case timeout
+
+        static func evaluate(
+            screen: String,
+            policy: CompletionPolicy,
+            idleFor: TimeInterval,
+            pastDeadline: Bool
+        ) -> CaptureDecision {
+            switch policy {
+            case .idle:
+                if !screen.isEmpty, idleFor > 3.0 {
+                    return .complete
+                }
+                return pastDeadline ? .complete : .continue
+            case let .renderedScreen(pending, ready):
+                let isPending = pending.contains { screen.contains($0) }
+                let isReady = ready.contains { screen.contains($0) }
+                if isReady, !isPending {
+                    return .complete
+                }
+                return pastDeadline ? .timeout : .continue
+            }
+        }
+    }
+
     /// The result of running a command.
     public struct Result: Sendable {
         /// The captured output from the command.
@@ -41,6 +69,8 @@ public struct InteractiveRunner: Sendable {
         public var environmentExclusions: [String]
         /// Environment variable values to set for the subprocess.
         public var environmentOverrides: [String: String]
+        /// Policy used to decide when output capture is complete.
+        public var completion: CompletionPolicy
 
         public init(
             timeout: TimeInterval = 20.0,
@@ -48,7 +78,8 @@ public struct InteractiveRunner: Sendable {
             arguments: [String] = [],
             autoResponses: [String: String] = [:],
             environmentExclusions: [String] = [],
-            environmentOverrides: [String: String] = [:]
+            environmentOverrides: [String: String] = [:],
+            completion: CompletionPolicy = .idle
         ) {
             self.timeout = timeout
             self.workingDirectory = workingDirectory
@@ -56,6 +87,7 @@ public struct InteractiveRunner: Sendable {
             self.autoResponses = autoResponses
             self.environmentExclusions = environmentExclusions
             self.environmentOverrides = environmentOverrides
+            self.completion = completion
         }
     }
 
@@ -248,22 +280,30 @@ public struct InteractiveRunner: Sendable {
         let deadline = Date().addingTimeInterval(options.timeout)
         var buffer = Data()
         var lastMeaningfulDataTime = Date()
-        let idleTimeout: TimeInterval = 3.0  // Exit if no new meaningful data for 3 seconds
 
         let promptResponses = options.autoResponses.map {
             (prompt: Data($0.key.utf8), response: Data($0.value.utf8))
         }
         var respondedPrompts = Set<Data>()
 
-        while Date() < deadline {
+        var renderedScreen = ""
+        var renderedBufferSize = -1
+        var lastRenderEvaluationTime = Date.distantPast
+        let terminalRenderer = TerminalRenderer(
+            cols: Int(Self.terminalCols),
+            rows: Int(Self.terminalRows)
+        )
+
+        captureLoop: while true {
             let previousSize = buffer.count
             readAvailableData(from: fd, into: &buffer)
+            let now = Date()
 
             // Track when we last received MEANINGFUL data (not just OSC/escape sequences)
             if buffer.count > previousSize {
                 let newData = buffer.suffix(from: previousSize)
                 if isMeaningfulData(newData) {
-                    lastMeaningfulDataTime = Date()
+                    lastMeaningfulDataTime = now
                 }
             }
 
@@ -272,16 +312,40 @@ public struct InteractiveRunner: Sendable {
                 if buffer.range(of: item.prompt) != nil {
                     try? handle.write(contentsOf: item.response)
                     respondedPrompts.insert(item.prompt)
-                    lastMeaningfulDataTime = Date()  // Reset idle timer after responding
+                    lastMeaningfulDataTime = now  // Reset idle timer after responding
                 }
             }
 
             // Exit if process stopped
             if !process.isRunning { break }
 
-            // Exit if we have meaningful output and no new meaningful data for idleTimeout
-            if hasMeaningfulContent(buffer) && Date().timeIntervalSince(lastMeaningfulDataTime) > idleTimeout {
+            let decisionScreen: String
+            switch options.completion {
+            case .idle:
+                decisionScreen = hasMeaningfulContent(buffer) ? "meaningful" : ""
+            case .renderedScreen:
+                if buffer.count != renderedBufferSize,
+                   now.timeIntervalSince(lastRenderEvaluationTime) >= 0.25 {
+                    let rawOutput = String(decoding: buffer, as: UTF8.self)
+                    renderedScreen = terminalRenderer.render(rawOutput)
+                    renderedBufferSize = buffer.count
+                    lastRenderEvaluationTime = now
+                }
+                decisionScreen = renderedScreen
+            }
+
+            switch CaptureDecision.evaluate(
+                screen: decisionScreen,
+                policy: options.completion,
+                idleFor: now.timeIntervalSince(lastMeaningfulDataTime),
+                pastDeadline: now >= deadline
+            ) {
+            case .continue:
                 break
+            case .complete:
+                break captureLoop
+            case .timeout:
+                throw RunError.timedOut
             }
 
             usleep(60000)

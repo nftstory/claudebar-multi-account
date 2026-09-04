@@ -35,8 +35,8 @@ struct OpenCodeUsageProbeTests {
         let captured = CapturedSQL()
         given(mockExecutor).locate(.value("opencode")).willReturn("/usr/local/bin/opencode")
         given(mockExecutor)
-            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any)
-            .willProduce { _, args, _, _, _, _ in
+            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any, completion: .any)
+            .willProduce { _, args, _, _, _, _, _ in
                 let sql = args.dropFirst().first ?? ""
                 let idx = captured.append(sql)
                 // First call: primary window (5h + weekly + anchor). Second: monthly cost.
@@ -82,8 +82,8 @@ struct OpenCodeUsageProbeTests {
         let captured = CapturedSQL()
         given(mockExecutor).locate(.value("opencode")).willReturn("/usr/local/bin/opencode")
         given(mockExecutor)
-            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any)
-            .willProduce { _, args, _, _, _, _ in
+            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any, completion: .any)
+            .willProduce { _, args, _, _, _, _, _ in
                 _ = captured.append(args.dropFirst().first ?? "")
                 // anchor_ms = null signals no opencode-go usage yet
                 return CLIResult(
@@ -117,7 +117,7 @@ struct OpenCodeUsageProbeTests {
         let mockExecutor = MockCLIExecutor()
         given(mockExecutor).locate(.value("opencode")).willReturn("/usr/local/bin/opencode")
         given(mockExecutor)
-            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any)
+            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any, completion: .any)
             .willReturn(CLIResult(output: "", exitCode: 1))
 
         let probe = OpenCodeUsageProbe(cliExecutor: mockExecutor)
@@ -134,8 +134,8 @@ struct OpenCodeUsageProbeTests {
         let captured = CapturedSQL()
         given(mockExecutor).locate(.value("opencode")).willReturn("/usr/local/bin/opencode")
         given(mockExecutor)
-            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any)
-            .willProduce { _, args, _, _, _, _ in
+            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any, completion: .any)
+            .willProduce { _, args, _, _, _, _, _ in
                 let sql = args.dropFirst().first ?? ""
                 let idx = captured.append(sql)
                 let output = idx == 0
@@ -167,8 +167,8 @@ struct OpenCodeUsageProbeTests {
         let captured = CapturedSQL()
         given(mockExecutor).locate(.value("opencode")).willReturn("/opt/homebrew/bin/opencode")
         given(mockExecutor)
-            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any)
-            .willProduce { binary, _, _, _, _, _ in
+            .execute(binary: .any, args: .any, input: .any, timeout: .any, workingDirectory: .any, autoResponses: .any, completion: .any)
+            .willProduce { binary, _, _, _, _, _, _ in
                 _ = captured.appendBinary(binary)
                 return CLIResult(
                     output: """

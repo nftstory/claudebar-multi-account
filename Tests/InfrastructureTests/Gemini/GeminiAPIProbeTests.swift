@@ -418,7 +418,8 @@ struct GeminiAPIProbeTests {
             input: .value("/quit\n"),
             timeout: .value(15.0),
             workingDirectory: .value(nil),
-            autoResponses: .value([:])
+            autoResponses: .value([:]),
+            completion: .any
         ).willReturn(CLIResult(output: ""))
 
         let probe = GeminiAPIProbe(
@@ -440,7 +441,8 @@ struct GeminiAPIProbeTests {
             input: .value("/quit\n"),
             timeout: .value(15.0),
             workingDirectory: .value(nil),
-            autoResponses: .value([:])
+            autoResponses: .value([:]),
+            completion: .any
         ).called(1)
     }
 
@@ -511,7 +513,8 @@ struct GeminiAPIProbeTests {
             input: .value("/quit\n"),
             timeout: .value(15.0),
             workingDirectory: .value(nil),
-            autoResponses: .value([:])
+            autoResponses: .value([:]),
+            completion: .any
         ).willReturn(CLIResult(output: ""))
 
         let probe = GeminiAPIProbe(
@@ -561,7 +564,8 @@ struct GeminiAPIProbeTests {
             input: .value("/quit\n"),
             timeout: .value(15.0),
             workingDirectory: .value(nil),
-            autoResponses: .value([:])
+            autoResponses: .value([:]),
+            completion: .any
         ).willReturn(CLIResult(output: ""))
 
         let probe = GeminiAPIProbe(

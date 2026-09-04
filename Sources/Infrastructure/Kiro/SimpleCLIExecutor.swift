@@ -15,8 +15,11 @@ public struct SimpleCLIExecutor: CLIExecutor {
         input: String?,
         timeout: TimeInterval,
         workingDirectory: URL?,
-        autoResponses: [String: String]
+        autoResponses: [String: String],
+        completion: CompletionPolicy = .idle
     ) throws -> CLIResult {
+        // This executor waits for a non-interactive Process to exit, so terminal-screen
+        // completion policies do not apply. Keep the parameter solely for conformance.
         guard let binaryPath = locate(binary) else {
             throw ProbeError.cliNotFound(binary)
         }

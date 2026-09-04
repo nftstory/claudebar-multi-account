@@ -234,7 +234,11 @@ struct ClaudeUsageProbeTests {
             input: .any,
             timeout: .any,
             workingDirectory: .any,
-            autoResponses: .any
+            autoResponses: .any,
+            completion: .value(.renderedScreen(
+                pending: ["Loading usage data", "Refreshing"],
+                ready: ["Current session"]
+            ))
         ).willReturn(CLIResult(output: usageOutput, exitCode: 0))
 
         let probe = ClaudeUsageProbe(cliExecutor: mockExecutor)
@@ -274,7 +278,8 @@ struct ClaudeUsageProbeTests {
             input: .any,
             timeout: .any,
             workingDirectory: .any,
-            autoResponses: .any
+            autoResponses: .any,
+            completion: .any
         ).willReturn(CLIResult(output: usageOutput, exitCode: 0))
 
         let probe = ClaudeUsageProbe(cliExecutor: mockExecutor)
@@ -322,7 +327,8 @@ struct ClaudeUsageProbeTests {
             input: .any,
             timeout: .any,
             workingDirectory: .any,
-            autoResponses: .any
+            autoResponses: .any,
+            completion: .any
         ).willReturn(CLIResult(output: tabbedUsageOutput, exitCode: 0))
 
         // Mock resolver returns account info

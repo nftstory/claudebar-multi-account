@@ -42,7 +42,8 @@ struct OmpUsageProbeTests {
             input: .any,
             timeout: .any,
             workingDirectory: .any,
-            autoResponses: .any
+            autoResponses: .any,
+            completion: .any
         ).willReturn(CLIResult(output: Self.validOutput, exitCode: 0))
 
         let probe = OmpUsageProbe(cliExecutor: mockExecutor)
@@ -78,7 +79,8 @@ struct OmpUsageProbeTests {
             input: .any,
             timeout: .any,
             workingDirectory: .any,
-            autoResponses: .any
+            autoResponses: .any,
+            completion: .any
         ).willReturn(CLIResult(output: "env: bun: No such file or directory", exitCode: 127))
 
         let probe = OmpUsageProbe(cliExecutor: mockExecutor)
@@ -101,7 +103,8 @@ struct OmpUsageProbeTests {
             input: .any,
             timeout: .any,
             workingDirectory: .any,
-            autoResponses: .any
+            autoResponses: .any,
+            completion: .any
         ).willReturn(CLIResult(
             output: "partial { \"email\": \"leak@example.com\", \"accountId\": \"tok-abc123\" } crash",
             exitCode: 3
@@ -127,7 +130,8 @@ struct OmpUsageProbeTests {
             input: .any,
             timeout: .any,
             workingDirectory: .any,
-            autoResponses: .any
+            autoResponses: .any,
+            completion: .any
         ).willReturn(CLIResult(output: "Unexpected interactive prompt", exitCode: 0))
 
         let probe = OmpUsageProbe(cliExecutor: mockExecutor)
@@ -148,7 +152,8 @@ struct OmpUsageProbeTests {
             input: .any,
             timeout: .any,
             workingDirectory: .any,
-            autoResponses: .any
+            autoResponses: .any,
+            completion: .any
         ).willThrow(NSError(domain: "test", code: 1, userInfo: [NSLocalizedDescriptionKey: "Process timed out"]))
 
         let probe = OmpUsageProbe(cliExecutor: mockExecutor)
