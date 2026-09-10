@@ -82,12 +82,24 @@ struct ClaudeBarApp: App {
                 dailyUsageAnalyzer: ClaudeDailyUsageAnalyzer(claudeDir: account.configDirectoryURL)
             )
         })
-        let remainingProviders: [any AIProvider] = [
+        let extraCodexAccounts: [CodexExtraAccount] = JSONSettingsStore.shared.readDecodable(
+            key: "codex.extraAccounts"
+        ) ?? []
+        providers.append(CodexProvider(
+            rpcProbe: CodexUsageProbe(),
+            apiProbe: CodexAPIUsageProbe(),
+            displayName: extraCodexAccounts.isEmpty ? nil : "Codex · cn",
+            settingsRepository: settingsRepository
+        ))
+        providers.append(contentsOf: extraCodexAccounts.map { account -> any AIProvider in
             CodexProvider(
-                rpcProbe: CodexUsageProbe(),
-                apiProbe: CodexAPIUsageProbe(),
+                probe: CodexUsageProbe(codexHome: account.codexHome, providerId: account.id),
+                id: account.id,
+                displayName: account.label,
                 settingsRepository: settingsRepository
-            ),
+            )
+        })
+        let remainingProviders: [any AIProvider] = [
             GeminiProvider(probe: GeminiUsageProbe(), settingsRepository: settingsRepository),
             AntigravityProvider(probe: AntigravityUsageProbe(), settingsRepository: settingsRepository),
             ZaiProvider(

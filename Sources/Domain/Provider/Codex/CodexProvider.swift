@@ -9,8 +9,8 @@ import Observation
 public final class CodexProvider: AIProvider {
     // MARK: - Identity
 
-    public let id: String = "codex"
-    public let name: String = "Codex"
+    public let id: String
+    public let name: String
     public let cliCommand: String = "codex"
 
     public var dashboardURL: URL? {
@@ -79,11 +79,18 @@ public final class CodexProvider: AIProvider {
     /// - Parameters:
     ///   - probe: The RPC probe to use for fetching usage data
     ///   - settingsRepository: The repository for persisting settings
-    public init(probe: any UsageProbe, settingsRepository: any ProviderSettingsRepository) {
+    public init(
+        probe: any UsageProbe,
+        id: String = "codex",
+        displayName: String? = nil,
+        settingsRepository: any ProviderSettingsRepository
+    ) {
+        self.id = id
+        self.name = displayName ?? "Codex"
         self.rpcProbe = probe
         self.apiProbe = nil
         self.settingsRepository = settingsRepository
-        self.isEnabled = settingsRepository.isEnabled(forProvider: "codex")
+        self.isEnabled = settingsRepository.isEnabled(forProvider: id)
     }
 
     /// Creates a Codex provider with both RPC and API probes
@@ -94,12 +101,16 @@ public final class CodexProvider: AIProvider {
     public init(
         rpcProbe: any UsageProbe,
         apiProbe: any UsageProbe,
+        id: String = "codex",
+        displayName: String? = nil,
         settingsRepository: any CodexSettingsRepository
     ) {
+        self.id = id
+        self.name = displayName ?? "Codex"
         self.rpcProbe = rpcProbe
         self.apiProbe = apiProbe
         self.settingsRepository = settingsRepository
-        self.isEnabled = settingsRepository.isEnabled(forProvider: "codex")
+        self.isEnabled = settingsRepository.isEnabled(forProvider: id)
     }
 
     // MARK: - AIProvider Protocol

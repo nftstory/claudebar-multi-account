@@ -74,4 +74,14 @@ struct CompactColumnsTests {
             compactTitle: compactTitle
         )
     }
+
+    @Test
+    func `label drops parenthetical suffixes and vendor word`() {
+        let opus = quota(100, type: .modelSpecific("Claude Opus 4.6 (Thinking)"), providerId: "antigravity")
+        #expect(CompactColumns.label(for: opus) == "OPUS 4.6")
+        #expect(CompactColumns.resetKey(for: opus) == "opus")
+        let pro = quota(40, type: .modelSpecific("Gemini 3.6 Pro (Preview)"), providerId: "antigravity")
+        #expect(CompactColumns.label(for: pro) == "3.6 PRO")
+        #expect(CompactColumns.resetKey(for: pro) == "3.6 pro")
+    }
 }

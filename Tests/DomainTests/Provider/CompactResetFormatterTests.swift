@@ -70,7 +70,7 @@ struct CompactResetFormatterTests {
             ),
         ], capturedAt: now)
 
-        #expect(CompactResetFormatter.lines(for: snapshot, providerId: "antigravity", now: now) == ["3.6 pr 4h"])
+        #expect(CompactResetFormatter.lines(for: snapshot, providerId: "antigravity", now: now) == ["3.6 pro 4h"])
     }
 
     @Test

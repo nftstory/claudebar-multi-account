@@ -58,9 +58,19 @@ public struct CodexRateLimitWindow: Sendable, Equatable {
 /// Infrastructure adapter that probes the Codex CLI to fetch usage quotas.
 public struct CodexUsageProbe: UsageProbe {
     private let client: CodexRPCClient
+    private let providerId: String
 
-    public init(client: CodexRPCClient? = nil) {
+    public init(client: CodexRPCClient? = nil, providerId: String = "codex") {
         self.client = client ?? DefaultCodexRPCClient()
+        self.providerId = providerId
+    }
+
+    /// Probes a second Codex login: the spawned `codex app-server` runs with `CODEX_HOME=<codexHome>`
+    /// so the CLI owns that account's credentials and token refresh.
+    public init(codexHome: String, providerId: String) {
+        let expanded = (codexHome as NSString).expandingTildeInPath
+        self.client = DefaultCodexRPCClient(environmentOverrides: ["CODEX_HOME": expanded])
+        self.providerId = providerId
     }
 
     public func isAvailable() async -> Bool {
@@ -68,11 +78,11 @@ public struct CodexUsageProbe: UsageProbe {
     }
 
     public func probe() async throws -> UsageSnapshot {
-        AppLog.probes.info("Starting Codex probe...")
+        AppLog.probes.info("Starting Codex probe (\(providerId))...")
         defer { client.shutdown() }
 
         let limits = try await client.fetchRateLimits()
-        let snapshot = try Self.mapRateLimitsToSnapshot(limits)
+        let snapshot = try Self.mapRateLimitsToSnapshot(limits, providerId: providerId)
 
         AppLog.probes.info("Codex probe success: \(snapshot.quotas.count) quotas found")
         for quota in snapshot.quotas {
@@ -82,7 +92,10 @@ public struct CodexUsageProbe: UsageProbe {
     }
 
     /// Maps RPC rate limits response to a UsageSnapshot (internal for testing).
-    internal static func mapRateLimitsToSnapshot(_ limits: CodexRateLimitsResponse) throws -> UsageSnapshot {
+    internal static func mapRateLimitsToSnapshot(
+        _ limits: CodexRateLimitsResponse,
+        providerId: String = "codex"
+    ) throws -> UsageSnapshot {
         var quotas: [UsageQuota] = []
         var firstClassification: QuotaType?
         let now = Date()
@@ -95,7 +108,7 @@ public struct CodexUsageProbe: UsageProbe {
             quotas.append(UsageQuota(
                 percentRemaining: max(0, 100 - window.usedPercent),
                 quotaType: emittedType,
-                providerId: "codex",
+                providerId: providerId,
                 resetsAt: window.resetsAt,
                 resetText: window.resetDescription,
                 windowDuration: window.windowDuration
@@ -111,7 +124,7 @@ public struct CodexUsageProbe: UsageProbe {
         }
 
         return UsageSnapshot(
-            providerId: "codex",
+            providerId: providerId,
             quotas: quotas,
             capturedAt: now
         )

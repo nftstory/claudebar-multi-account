@@ -543,7 +543,7 @@ enum ProviderVisualIdentityLookup {
             return scheme == .dark
                 ? BaseTheme.coralAccent
                 : Color(red: 0.95, green: 0.48, blue: 0.38)
-        case "codex":
+        case let id where id.hasPrefix("codex"):
             return scheme == .dark
                 ? BaseTheme.tealBright
                 : Color(red: 0.18, green: 0.72, blue: 0.68)
@@ -628,7 +628,7 @@ enum ProviderVisualIdentityLookup {
             secondaryColor = scheme == .dark
                 ? BaseTheme.pinkHot
                 : Color(red: 0.92, green: 0.45, blue: 0.72)
-        case "codex":
+        case let id where id.hasPrefix("codex"):
             secondaryColor = scheme == .dark
                 ? Color(red: 0.25, green: 0.65, blue: 0.85)
                 : Color(red: 0.12, green: 0.52, blue: 0.72)
@@ -715,7 +715,7 @@ enum ProviderVisualIdentityLookup {
     static func iconAssetName(for providerId: String) -> String {
         switch providerId {
         case let id where id.hasPrefix("claude"): return "ClaudeIcon"
-        case "codex": return "CodexIcon"
+        case let id where id.hasPrefix("codex"): return "CodexIcon"
         case "gemini": return "GeminiIcon"
         case "copilot": return "CopilotIcon"
         case "antigravity": return "AntigravityIcon"
@@ -740,7 +740,7 @@ enum ProviderVisualIdentityLookup {
     static func name(for providerId: String) -> String {
         switch providerId {
         case let id where id.hasPrefix("claude"): return "Claude"
-        case "codex": return "Codex"
+        case let id where id.hasPrefix("codex"): return "Codex"
         case "gemini": return "Gemini"
         case "copilot": return "GitHub Copilot"
         case "antigravity": return "Antigravity"
@@ -765,7 +765,7 @@ enum ProviderVisualIdentityLookup {
     static func symbolIcon(for providerId: String) -> String {
         switch providerId {
         case let id where id.hasPrefix("claude"): return "brain.fill"
-        case "codex": return "chevron.left.forwardslash.chevron.right"
+        case let id where id.hasPrefix("codex"): return "chevron.left.forwardslash.chevron.right"
         case "gemini": return "sparkles"
         case "copilot": return "chevron.left.forwardslash.chevron.right"
         case "antigravity": return "wand.and.stars"

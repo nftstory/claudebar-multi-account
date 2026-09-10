@@ -33,11 +33,16 @@ Quit ClaudeBar, then edit `~/.claudebar/settings.json`. Keys are **nested** (dot
       { "id": "claude-work", "label": "Claude · work", "configDir": "/Users/you/.claude-work" },
       { "id": "claude-side", "label": "Claude · side", "configDir": "/Users/you/.claude-side" }
     ]
+  },
+  "codex": {
+    "extraAccounts": [
+      { "id": "codex-side", "label": "Codex · side", "codexHome": "/Users/you/.codex-side" }
+    ]
   }
 }
 ```
 
-Each `configDir` is a directory you have logged into with `CLAUDE_CONFIG_DIR=<dir> claude login`. The default `~/.claude` account remains the first row.
+Each `configDir` is a directory you have logged into with `CLAUDE_CONFIG_DIR=<dir> claude login`; each `codexHome` one you have logged into with `CODEX_HOME=<dir> codex login`. The default `~/.claude` and `~/.codex` accounts remain the first row of their group.
 
 ### Building and installing
 

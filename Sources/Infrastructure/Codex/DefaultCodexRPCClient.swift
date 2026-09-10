@@ -7,6 +7,8 @@ public final class DefaultCodexRPCClient: CodexRPCClient, @unchecked Sendable {
     private let executable: String
     private let cliExecutor: CLIExecutor
     private let transport: RPCTransport?
+    /// Extra environment for the spawned `codex app-server` (e.g. `CODEX_HOME` for a second account).
+    private let environmentOverrides: [String: String]
     private var nextID = 1
     private var didLogWindowKeys = false
 
@@ -14,10 +16,15 @@ public final class DefaultCodexRPCClient: CodexRPCClient, @unchecked Sendable {
     var transportFactory: ((String, [String]) throws -> RPCTransport)?
 
     /// Default initializer - uses real CLI executor and creates transport lazily.
-    public init(executable: String = "codex", cliExecutor: CLIExecutor? = nil) {
+    public init(
+        executable: String = "codex",
+        cliExecutor: CLIExecutor? = nil,
+        environmentOverrides: [String: String] = [:]
+    ) {
         self.executable = executable
         self.cliExecutor = cliExecutor ?? DefaultCLIExecutor()
         self.transport = nil
+        self.environmentOverrides = environmentOverrides
     }
 
     /// Internal initializer for testing with mock transport.
@@ -25,6 +32,7 @@ public final class DefaultCodexRPCClient: CodexRPCClient, @unchecked Sendable {
         self.executable = "codex"
         self.cliExecutor = cliExecutor ?? DefaultCLIExecutor()
         self.transport = transport
+        self.environmentOverrides = [:]
     }
 
     public func isAvailable() -> Bool {
@@ -60,8 +68,11 @@ public final class DefaultCodexRPCClient: CodexRPCClient, @unchecked Sendable {
             activeTransport = transport
             ownsTransport = false
         } else {
+            let overrides = environmentOverrides
             let factory = transportFactory ?? { exec, args in
-                try ProcessRPCTransport(executable: exec, arguments: args)
+                var env = ProcessInfo.processInfo.environment
+                env.merge(overrides) { _, override in override }
+                return try ProcessRPCTransport(executable: exec, arguments: args, environment: env)
             }
             activeTransport = try factory(executable, ["-s", "read-only", "-a", "never", "app-server"])
             ownsTransport = true

@@ -623,7 +623,7 @@ extension AppTheme {
         switch providerId {
         case let id where id.hasPrefix("claude"):
             return coralAccent(for: scheme)
-        case "codex":
+        case let id where id.hasPrefix("codex"):
             return tealBright(for: scheme)
         case "gemini":
             return goldenGlow(for: scheme)
@@ -689,7 +689,7 @@ extension AppTheme {
         switch providerId {
         case let id where id.hasPrefix("claude"):
             secondaryColor = pinkHot(for: scheme)
-        case "codex":
+        case let id where id.hasPrefix("codex"):
             secondaryColor = scheme == .dark
                 ? Color(red: 0.25, green: 0.65, blue: 0.85)
                 : Color(red: 0.12, green: 0.52, blue: 0.72)
@@ -760,7 +760,7 @@ extension AppTheme {
     static func providerIconAssetName(for providerId: String) -> String {
         switch providerId {
         case let id where id.hasPrefix("claude"): return "ClaudeIcon"
-        case "codex": return "CodexIcon"
+        case let id where id.hasPrefix("codex"): return "CodexIcon"
         case "gemini": return "GeminiIcon"
         case "copilot": return "CopilotIcon"
         case "antigravity": return "AntigravityIcon"
@@ -781,7 +781,7 @@ extension AppTheme {
     static func providerName(for providerId: String) -> String {
         switch providerId {
         case let id where id.hasPrefix("claude"): return "Claude"
-        case "codex": return "Codex"
+        case let id where id.hasPrefix("codex"): return "Codex"
         case "gemini": return "Gemini"
         case "copilot": return "GitHub Copilot"
         case "antigravity": return "Antigravity"
@@ -802,7 +802,7 @@ extension AppTheme {
     static func providerSymbolIcon(for providerId: String) -> String {
         switch providerId {
         case let id where id.hasPrefix("claude"): return "brain.fill"
-        case "codex": return "chevron.left.forwardslash.chevron.right"
+        case let id where id.hasPrefix("codex"): return "chevron.left.forwardslash.chevron.right"
         case "gemini": return "sparkles"
         case "copilot": return "chevron.left.forwardslash.chevron.right"
         case "antigravity": return "wand.and.stars"

@@ -40,7 +40,7 @@ public enum CompactResetFormatter {
         case .weekly:
             return "wk"
         case .modelSpecific:
-            return String(CompactColumns.label(for: quota).lowercased().prefix(6))
+            return CompactColumns.resetKey(for: quota)
         case .timeLimit:
             return ""
         }
