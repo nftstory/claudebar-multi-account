@@ -144,6 +144,23 @@ struct GrokUsageProbeParsingTests {
         #expect(snapshot.quota(for: .weekly)?.percentRemaining == 4.0)
     }
 
+    /// Live shape observed 2026-09-24 right after a weekly reset: the API drops
+    /// `creditUsagePercent` and `productUsage` entirely while usage is zero.
+    @Test
+    func `untouched period with omitted usage percent parses as fully available`() throws {
+        let json = """
+        {"config":{"currentPeriod":{"type":"USAGE_PERIOD_TYPE_WEEKLY","start":"2026-09-22T00:14:36.920900+00:00","end":"2026-09-29T00:14:36.920900+00:00"},"onDemandCap":{"val":0},"onDemandUsed":{"val":0},"isUnifiedBillingUser":true,"prepaidBalance":{"val":0},"billingPeriodStart":"2026-09-22T00:14:36.920900+00:00","billingPeriodEnd":"2026-09-29T00:14:36.920900+00:00"}}
+        """
+        let now = try #require(ISO8601DateFormatter().date(from: "2026-09-24T20:00:00Z"))
+
+        let snapshot = try GrokUsageProbe.parseResponse(Data(json.utf8), providerId: "grok", now: now)
+
+        #expect(snapshot.quotas.count == 1)
+        let weekly = try #require(snapshot.quota(for: .weekly))
+        #expect(weekly.percentRemaining == 100)
+        #expect(weekly.resetText == "Resets in 4d 4h 14m")
+    }
+
     @Test
     func `handles empty response with no quotas`() throws {
         let snapshot = try GrokUsageProbe.parseResponse(Data("{}".utf8), providerId: "grok")

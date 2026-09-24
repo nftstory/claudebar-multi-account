@@ -216,8 +216,10 @@ public struct GrokUsageProbe: UsageProbe, @unchecked Sendable {
 
         var quotas: [UsageQuota] = []
 
-        // Overall credit usage for the current period
-        if let creditUsagePercent = doubleValue(config["creditUsagePercent"]) {
+        // Overall credit usage for the current period. The API serializes protobuf
+        // defaults by omission: at 0% used the field is simply absent, so a period
+        // without a percent is an untouched period, not missing data.
+        if let creditUsagePercent = doubleValue(config["creditUsagePercent"]) ?? (period != nil ? 0 : nil) {
             quotas.append(UsageQuota(
                 percentRemaining: max(-100, 100 - creditUsagePercent),
                 quotaType: periodQuotaType,
