@@ -4,12 +4,32 @@ import Foundation
 public enum CompactColumns {
     private static let vendorNames = ["gemini", "claude", "grok", "openai"]
 
+    /// The vendor whose models a provider is primarily used for; breaks ties when several models
+    /// are equally constrained (e.g. everything at 100%), so Antigravity shows Gemini, not Claude.
+    private static let nativeVendor: [String: String] = ["antigravity": "gemini"]
+
     /// Returns the most constrained specialized-model quota for column 3.
+    /// Ties are broken by the provider's native vendor, then flagship ("Pro") models, then the
+    /// newest version, so the column stays stable and meaningful when nothing is constrained.
     public static func specialQuota(in snapshot: UsageSnapshot, providerId: String) -> UsageQuota? {
         guard providerId != "grok" else { return nil }
-        return snapshot.modelSpecificQuotas.min {
-            $0.percentRemaining < $1.percentRemaining
+        let vendor = nativeVendor[providerId]
+        return snapshot.modelSpecificQuotas.min { lhs, rhs in
+            if lhs.percentRemaining != rhs.percentRemaining {
+                return lhs.percentRemaining < rhs.percentRemaining
+            }
+            return tieRank(lhs, vendor: vendor) < tieRank(rhs, vendor: vendor)
         }
+    }
+
+    /// Lower ranks win a tie: native vendor first, "Pro" before others, higher version before lower.
+    private static func tieRank(_ quota: UsageQuota, vendor: String?) -> (Int, Int, Double, String) {
+        let title = stripParentheticals(quota.compactTitle ?? quota.quotaType.displayName)
+        let words = title.split(whereSeparator: { $0.isWhitespace }).map { $0.lowercased() }
+        let vendorRank = (vendor != nil && words.first == vendor) ? 0 : 1
+        let proRank = words.contains("pro") ? 0 : 1
+        let version = words.compactMap(Double.init).first ?? 0
+        return (vendorRank, proRank, -version, title.lowercased())
     }
 
     /// Returns the compact uppercase label for a specialized-model quota.

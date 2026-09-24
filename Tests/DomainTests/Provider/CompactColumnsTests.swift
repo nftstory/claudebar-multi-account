@@ -40,6 +40,30 @@ struct CompactColumnsTests {
     }
 
     @Test
+    func `Antigravity tie at full quota prefers Gemini Pro over Claude Opus`() throws {
+        let opus = quota(100, type: .modelSpecific("Claude Opus 4.6 (Thinking)"), providerId: "antigravity")
+        let sonnet = quota(100, type: .modelSpecific("Claude Sonnet 4.6 (Thinking)"), providerId: "antigravity")
+        let flash = quota(100, type: .modelSpecific("Gemini 3.6 Flash (High)"), providerId: "antigravity")
+        let oldPro = quota(100, type: .modelSpecific("Gemini 2.5 Pro"), providerId: "antigravity")
+        let pro = quota(100, type: .modelSpecific("Gemini 3.1 Pro (High)"), providerId: "antigravity")
+        let snapshot = makeSnapshot(providerId: "antigravity", quotas: [opus, sonnet, flash, oldPro, pro])
+
+        let selected = try #require(CompactColumns.specialQuota(in: snapshot, providerId: "antigravity"))
+        #expect(selected == pro)
+        #expect(CompactColumns.label(for: selected) == "3.1 PRO")
+    }
+
+    @Test
+    func `Antigravity constrained Claude quota still beats a full Gemini quota`() throws {
+        let opus = quota(20, type: .modelSpecific("Claude Opus 4.6 (Thinking)"), providerId: "antigravity")
+        let pro = quota(100, type: .modelSpecific("Gemini 3.1 Pro (High)"), providerId: "antigravity")
+        let snapshot = makeSnapshot(providerId: "antigravity", quotas: [pro, opus])
+
+        let selected = try #require(CompactColumns.specialQuota(in: snapshot, providerId: "antigravity"))
+        #expect(selected == opus)
+    }
+
+    @Test
     func `Grok model-specific Build quota is excluded`() {
         let snapshot = makeSnapshot(providerId: "grok", quotas: [
             quota(10, type: .modelSpecific("Build"), providerId: "grok"),
