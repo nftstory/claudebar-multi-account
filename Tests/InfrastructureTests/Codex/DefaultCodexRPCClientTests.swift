@@ -145,6 +145,101 @@ struct DefaultCodexRPCClientTests {
     }
 
     @Test
+    func `fetchRateLimits maps expired token to sessionExpired with login hint`() async throws {
+        let mockTransport = MockRPCTransport()
+        let mockExecutor = MockCLIExecutor()
+        setupMockTransport(mockTransport, rateLimitsResponse: """
+        {"id":2,"error":{"code":-32603,"message":"failed to fetch codex rate limits: GET https://chatgpt.com/backend-api/wham/usage failed: 401 Unauthorized; body={\\"code\\": \\"token_expired\\"}"}}
+        """)
+
+        let client = DefaultCodexRPCClient(transport: mockTransport, cliExecutor: mockExecutor)
+
+        do {
+            _ = try await client.fetchRateLimits()
+            Issue.record("Expected sessionExpired")
+        } catch let error as ProbeError {
+            #expect(error == .sessionExpired())
+            #expect(error.localizedDescription.contains("codex login"))
+        }
+    }
+
+    @Test
+    func `expired auth detection matches app-server and refresh failures only`() {
+        #expect(DefaultCodexRPCClient.isExpiredAuthError("401 Unauthorized; code token_expired"))
+        #expect(DefaultCodexRPCClient.isExpiredAuthError("Failed to refresh token: invalid_refresh_token"))
+        #expect(DefaultCodexRPCClient.isExpiredAuthError("Please log out and sign in again."))
+        #expect(!DefaultCodexRPCClient.isExpiredAuthError("No rate limits available yet"))
+        #expect(!DefaultCodexRPCClient.isExpiredAuthError("RPC error: internal server error 500"))
+    }
+
+    @Test
+    func `login hint names the account's CODEX_HOME`() {
+        let extra = DefaultCodexRPCClient(environmentOverrides: ["CODEX_HOME": NSHomeDirectory() + "/.codex-creative"])
+        #expect(extra.loginHint == "Run `CODEX_HOME=~/.codex-creative codex login`")
+        #expect(DefaultCodexRPCClient().loginHint == "Run `codex login`")
+    }
+
+    /// A transport whose app-server never answers: `receive()` blocks until `close()`.
+    private final class SilentTransport: RPCTransport, @unchecked Sendable {
+        private let lock = NSLock()
+        private var waiters: [CheckedContinuation<Data, any Error>] = []
+        private(set) var closed = false
+
+        func send(_ data: Data) throws {}
+
+        func receive() async throws -> Data {
+            try await withCheckedThrowingContinuation { continuation in
+                lock.lock(); defer { lock.unlock() }
+                if closed {
+                    continuation.resume(throwing: ProbeError.executionFailed("Process closed unexpectedly"))
+                } else {
+                    waiters.append(continuation)
+                }
+            }
+        }
+
+        func close() {
+            lock.lock(); defer { lock.unlock() }
+            closed = true
+            waiters.forEach { $0.resume(throwing: ProbeError.executionFailed("Process closed unexpectedly")) }
+            waiters.removeAll()
+        }
+    }
+
+    @Test
+    func `fetchRateLimits times out and closes the transport when the app-server never replies`() async throws {
+        let transport = SilentTransport()
+        let client = DefaultCodexRPCClient(transport: transport, cliExecutor: MockCLIExecutor())
+        client.rpcTimeout = 0.2
+
+        let started = Date()
+        do {
+            _ = try await client.fetchRateLimits()
+            Issue.record("Expected timeout")
+        } catch let error as ProbeError {
+            #expect(error == .timeout)
+        }
+        #expect(Date().timeIntervalSince(started) < 5)
+        #expect(transport.closed)
+    }
+
+    @Test
+    func `cancelling the parent closes the transport and does not hang`() async throws {
+        let transport = SilentTransport()
+        let client = DefaultCodexRPCClient(transport: transport, cliExecutor: MockCLIExecutor())
+        client.rpcTimeout = 30
+
+        let fetch = Task { try await client.fetchRateLimits() }
+        try await Task.sleep(nanoseconds: 100_000_000)
+        fetch.cancel()
+
+        let started = Date()
+        await #expect(throws: (any Error).self) { try await fetch.value }
+        #expect(Date().timeIntervalSince(started) < 5)
+        #expect(transport.closed)
+    }
+
+    @Test
     func `fetchRateLimits throws when result is missing`() async throws {
         // Given - response without result
         let mockTransport = MockRPCTransport()

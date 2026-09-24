@@ -7,11 +7,21 @@ public final class ProcessRPCTransport: RPCTransport, @unchecked Sendable {
     private let process: Process
     private let stdinPipe: Pipe
     private let stdoutPipe: Pipe
+    /// One reader for the process lifetime. `FileHandle.bytes` buffers reads internally, so creating a
+    /// fresh sequence per `receive()` silently drops every line that arrived in the same chunk as the
+    /// one just returned — a rate-limits reply that lands with a notification would then never be seen.
+    ///
+    /// Single-reader contract: callers issue one `receive()` at a time (the JSON-RPC clients await each
+    /// reply before sending the next request). The iterator is not synchronized; `receiveInFlight`
+    /// asserts the contract in debug builds.
+    private var lines: AsyncLineSequence<FileHandle.AsyncBytes>.AsyncIterator
+    private var receiveInFlight = false
 
     public init(executable: String, arguments: [String], environment: [String: String]? = nil) throws {
         self.process = Process()
         self.stdinPipe = Pipe()
         self.stdoutPipe = Pipe()
+        self.lines = stdoutPipe.fileHandleForReading.bytes.lines.makeAsyncIterator()
 
         guard let executablePath = BinaryLocator.which(executable) else {
             AppLog.probes.error("RPC transport: '\(executable)' not found in PATH")
@@ -45,7 +55,10 @@ public final class ProcessRPCTransport: RPCTransport, @unchecked Sendable {
     }
 
     public func receive() async throws -> Data {
-        for try await line in stdoutPipe.fileHandleForReading.bytes.lines {
+        assert(!receiveInFlight, "ProcessRPCTransport.receive() must not be called concurrently")
+        receiveInFlight = true
+        defer { receiveInFlight = false }
+        while let line = try await lines.next() {
             guard !line.isEmpty, let data = line.data(using: .utf8) else {
                 continue
             }
@@ -54,9 +67,12 @@ public final class ProcessRPCTransport: RPCTransport, @unchecked Sendable {
         throw ProbeError.executionFailed("Process closed unexpectedly")
     }
 
+    /// Terminates the process and closes our pipe ends so any pending `receive()` sees EOF and returns.
     public func close() {
         if process.isRunning {
             process.terminate()
         }
+        try? stdinPipe.fileHandleForWriting.close()
+        try? stdoutPipe.fileHandleForReading.close()
     }
 }

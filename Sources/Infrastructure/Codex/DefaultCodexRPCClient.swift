@@ -11,6 +11,9 @@ public final class DefaultCodexRPCClient: CodexRPCClient, @unchecked Sendable {
     private let environmentOverrides: [String: String]
     private var nextID = 1
     private var didLogWindowKeys = false
+    /// Hard deadline for the whole initialize → rateLimits exchange. Without it a lost reply leaves the
+    /// provider "syncing" forever and an orphaned `codex app-server` behind.
+    var rpcTimeout: TimeInterval = 20
 
     /// Package-internal: allows tests to inject a mock transport for the production (no-injection) code path.
     var transportFactory: ((String, [String]) throws -> RPCTransport)?
@@ -51,17 +54,42 @@ public final class DefaultCodexRPCClient: CodexRPCClient, @unchecked Sendable {
 
     public func fetchRateLimits() async throws -> CodexRateLimitsResponse {
         do {
-            return try await fetchViaRPC()
+            return try await fetchViaRPCWithTimeout()
         } catch {
+            if case ProbeError.timeout = error { throw error }
+            if error is CancellationError { throw error }
+            if Self.isExpiredAuthError(error.localizedDescription) {
+                AppLog.probes.error("Codex app-server: auth expired for \(self.loginHint)")
+                throw ProbeError.sessionExpired(hint: loginHint)
+            }
             let message = "Codex app-server failed: \(error.localizedDescription)"
             AppLog.probes.error("\(message)")
             throw ProbeError.executionFailed(message)
         }
     }
 
+    /// The `codex login` invocation that repairs this account's credentials, scoped to its `CODEX_HOME`.
+    var loginHint: String {
+        guard let home = environmentOverrides["CODEX_HOME"], !home.isEmpty else {
+            return "Run `codex login`"
+        }
+        let short = home.replacingOccurrences(of: NSHomeDirectory(), with: "~")
+        return "Run `CODEX_HOME=\(short) codex login`"
+    }
+
+    /// True when the app-server's error means the stored OAuth token is dead and only a fresh login helps.
+    static func isExpiredAuthError(_ message: String) -> Bool {
+        let lower = message.lowercased()
+        if lower.contains("token_expired") || lower.contains("invalid_refresh_token") { return true }
+        if lower.contains("401") && lower.contains("unauthorized") { return true }
+        return lower.contains("signing in again") || lower.contains("sign in again")
+    }
+
     // MARK: - RPC Approach
 
-    private func fetchViaRPC() async throws -> CodexRateLimitsResponse {
+    /// Opens the transport, runs the exchange, and closes the transport on every exit path — including the
+    /// deadline, where closing it (terminating the process) is what unblocks the pending read.
+    private func fetchViaRPCWithTimeout() async throws -> CodexRateLimitsResponse {
         let activeTransport: RPCTransport
         let ownsTransport: Bool
         if let transport = self.transport {
@@ -83,6 +111,46 @@ public final class DefaultCodexRPCClient: CodexRPCClient, @unchecked Sendable {
             }
         }
 
+        let timeout = rpcTimeout
+        let deadline = DeadlineFlag()
+        // Closing the transport is what unblocks a pending read, so it must happen on the deadline
+        // AND on parent cancellation — otherwise a cancelled refresh could wait on the read forever.
+        return try await withTaskCancellationHandler {
+            try await withThrowingTaskGroup(of: CodexRateLimitsResponse.self) { group in
+                group.addTask { try await self.fetchViaRPC(transport: activeTransport) }
+                group.addTask {
+                    try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                    deadline.fire()
+                    AppLog.probes.error("Codex app-server: no reply within \(Int(timeout))s, terminating")
+                    activeTransport.close()
+                    throw ProbeError.timeout
+                }
+                defer { group.cancelAll() }
+                do {
+                    guard let first = try await group.next() else { throw ProbeError.timeout }
+                    return first
+                } catch {
+                    // The closed transport may make the reader fail before the deadline task throws;
+                    // report the cause, not the symptom.
+                    if deadline.hasFired { throw ProbeError.timeout }
+                    if Task.isCancelled { throw CancellationError() }
+                    throw error
+                }
+            }
+        } onCancel: {
+            activeTransport.close()
+        }
+    }
+
+    /// Records that the RPC deadline fired; safe to touch from the deadline task and the group body.
+    private final class DeadlineFlag: @unchecked Sendable {
+        private let lock = NSLock()
+        private var fired = false
+        var hasFired: Bool { lock.withLock { fired } }
+        func fire() { lock.withLock { fired = true } }
+    }
+
+    private func fetchViaRPC(transport activeTransport: RPCTransport) async throws -> CodexRateLimitsResponse {
         // Initialize RPC connection
         _ = try await request(transport: activeTransport, method: "initialize", params: [
             "clientInfo": ["name": "claudebar", "version": "1.0.0"]
