@@ -63,16 +63,33 @@ struct ClaudeBarApp: App {
         let extraClaudeAccounts: [ClaudeExtraAccount] = JSONSettingsStore.shared.readDecodable(
             key: "claude.extraAccounts"
         ) ?? []
-        var providers: [any AIProvider] = [
-            ClaudeProvider(
+        // Optional overrides for the default Claude card (`claude.configDir`, `claude.label`).
+        // With a configDir the default card behaves exactly like an extra account: CLI-only probe
+        // run with CLAUDE_CONFIG_DIR=<dir>, so it never touches ~/.claude (whose session archive can
+        // be large enough that `claude /usage` stays in "Scanning local sessions…" past the timeout).
+        let defaultClaudeConfigDir: String? = JSONSettingsStore.shared.read(key: "claude.configDir")
+        let defaultClaudeLabel: String? = JSONSettingsStore.shared.read(key: "claude.label")
+            ?? (extraClaudeAccounts.isEmpty ? nil : "Claude · ccn")
+        let defaultClaudeProvider: ClaudeProvider
+        if let configDir = defaultClaudeConfigDir, !configDir.isEmpty {
+            let defaultAccount = ClaudeExtraAccount(id: "claude", label: defaultClaudeLabel ?? "Claude", configDir: configDir)
+            defaultClaudeProvider = ClaudeProvider(
+                probe: ClaudeUsageProbe(configDir: defaultAccount.configDir),
+                displayName: defaultClaudeLabel,
+                settingsRepository: settingsRepository,
+                dailyUsageAnalyzer: ClaudeDailyUsageAnalyzer(claudeDir: defaultAccount.configDirectoryURL)
+            )
+        } else {
+            defaultClaudeProvider = ClaudeProvider(
                 cliProbe: ClaudeUsageProbe(),
                 apiProbe: ClaudeAPIUsageProbe(),
-                displayName: extraClaudeAccounts.isEmpty ? nil : "Claude · ccn",
+                displayName: defaultClaudeLabel,
                 passProbe: ClaudePassProbe(),
                 settingsRepository: settingsRepository,
                 dailyUsageAnalyzer: ClaudeDailyUsageAnalyzer()
-            ),
-        ]
+            )
+        }
+        var providers: [any AIProvider] = [defaultClaudeProvider]
         providers.append(contentsOf: extraClaudeAccounts.map { account -> any AIProvider in
             ClaudeProvider(
                 probe: ClaudeUsageProbe(configDir: account.configDir),

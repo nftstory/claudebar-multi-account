@@ -29,6 +29,8 @@ Quit ClaudeBar, then edit `~/.claudebar/settings.json`. Keys are **nested** (dot
     "compactOverviewEnabled": true
   },
   "claude": {
+    "configDir": "/Users/you/.claude-default",
+    "label": "Claude · default",
     "extraAccounts": [
       { "id": "claude-work", "label": "Claude · work", "configDir": "/Users/you/.claude-work" },
       { "id": "claude-side", "label": "Claude · side", "configDir": "/Users/you/.claude-side" }
@@ -43,6 +45,8 @@ Quit ClaudeBar, then edit `~/.claudebar/settings.json`. Keys are **nested** (dot
 ```
 
 Each `configDir` is a directory you have logged into with `CLAUDE_CONFIG_DIR=<dir> claude login`; each `codexHome` one you have logged into with `CODEX_HOME=<dir> codex login`. The default `~/.claude` and `~/.codex` accounts remain the first row of their group.
+
+`claude.configDir` (optional) points the default Claude card at a profile directory instead of `~/.claude`, and `claude.label` (optional) renames it. Set `configDir` when `~/.claude` holds a large session archive: `claude /usage` then spends longer than the probe timeout in "Scanning local sessions…" and the card never loads. With `configDir` set the default card is probed the same way as an extra account (CLI only).
 
 ### Building and installing
 
