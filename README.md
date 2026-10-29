@@ -1,5 +1,7 @@
 # ClaudeBar Multi-Account
 
+> **Archived (October 2026).** This fork is retired and no longer maintained. At NFT Story it was replaced by **Usage Bar**, an internal macOS menu-bar app that shows remaining usage and reset countdowns for the team's shared Claude, Codex, Grok and Antigravity accounts. Usage Bar reads a small private account-usage API instead of driving each provider's CLI on every Mac, so one poller serves every teammate's menu bar. It is not published. This repository stays online for reference only: the code still builds as described below, but it will not receive fixes. For a maintained, general-purpose quota monitor, use upstream [ClaudeBar](https://github.com/tddworks/ClaudeBar).
+
 ClaudeBar Multi-Account is a fork of [ClaudeBar](https://github.com/tddworks/ClaudeBar) (based on v0.4.82) that shows **every Claude subscription you own** — plus Codex, Grok and Antigravity — in one compact menu-bar table.
 
 <img src="docs/screenshots/panel.png" width="560" alt="The popover: one row per account — three Claude accounts, Codex, Antigravity and Grok — each with 5H, WEEKLY and specialized-model percentages, status bars and reset countdowns" />
